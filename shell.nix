@@ -6,5 +6,9 @@ pkgs.mkShell {
     bash
 
     nginx
+
+    nodejs
+
+    yt-dlp
   ];
 }
