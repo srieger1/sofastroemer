@@ -10,12 +10,26 @@ type PeersMessage = {
   peers: Array<string>;
 }
 
-type Message = PeersMessage;
+type SeekMessage = {
+  type: "seek";
+  pos: number;
+}
+
+type PlayMessage = {
+  type: "play";
+  pause: boolean;
+}
+
+type Message = PeersMessage | SeekMessage | PlayMessage;
 
 
 let connections = new Map<string, DataConnection>();
 
 const peer = new Peer()
+
+const player = videojs("video", {})
+player.src({src: "https://box.open-desk.net/Big Buck Bunny [YE7VzlLtp-4].mp4"});
+
 
 function on_data(conn: DataConnection, msg: Message) {
   console.log("Data", conn.peer, msg)
@@ -33,6 +47,23 @@ function on_data(conn: DataConnection, msg: Message) {
 
         const conn = peer.connect(id)
         on_connect(conn)
+      }
+
+      break;
+
+    case "seek":
+      console.log("Seeeeek");
+      player.currentTime(msg.pos)
+      break;
+
+    case "play":
+      console.log("Plaaaaaay")
+      if (msg.pause) {
+        player.pause()
+      }
+
+      if (!msg.pause) {
+        player.play()
       }
 
       break;
@@ -95,6 +126,27 @@ peer.on("connection", (conn) => {
   on_connect(conn)
 })
 
-const player = videojs("video", {})
-player.src({src: "https://box.open-desk.net/Big Buck Bunny [YE7VzlLtp-4].mp4"});
+
+function broadcast(msg: Message) {
+  console.log("Send", msg)
+  for (const conn of connections.values()) {
+    console.log("Send to", conn.peer, msg)
+    conn.send(msg)
+  }
+}
+
+player.on('play', () => broadcast({ type: "play", pause: false }));
+player.on('pause', () => broadcast({ type: "play", pause: true }));
+player.on('seeked', () => broadcast({ type: "seek", pos: player.currentTime() || 0 }));
+
+
+window.addEventListener('resize', () => {
+  const videoContainer = document.querySelector('.video-container') as HTMLDivElement;
+  if (videoContainer) {
+    const aspectRatio = 16 / 9;
+    const width = Math.min(window.innerWidth * 0.9, 800);
+    videoContainer.style.width = `${width}px`;
+    videoContainer.style.height = `${width / aspectRatio}px`;
+  }
+});
 
