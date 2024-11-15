@@ -4,23 +4,31 @@ import videojs from "video.js"
 import { Peer, DataConnection } from "peerjs"
 import $ from "jquery";
 
+class State {
+  play: boolean = false;
+  pos: number = 0;
+
+  public static eq(a: State, b: State): boolean {
+    return a.play === b.play
+      && a.pos === b.pos
+  }
+}
+
 
 type PeersMessage = {
   type: "peers";
   peers: Array<string>;
 }
 
-type SeekMessage = {
-  type: "seek";
-  pos: number;
+type StateMessage = {
+  type: "state";
+  state: State;
 }
 
-type PlayMessage = {
-  type: "play";
-  pause: boolean;
-}
+type Message = PeersMessage | StateMessage;
 
-type Message = PeersMessage | SeekMessage | PlayMessage;
+
+let state = new State()
 
 
 let connections = new Map<string, DataConnection>();
@@ -49,24 +57,26 @@ function on_data(conn: DataConnection, msg: Message) {
         on_connect(conn)
       }
 
-      break;
+      break
 
-    case "seek":
-      console.log("Seeeeek");
-      player.currentTime(msg.pos)
-      break;
+    case "state":
+      if (State.eq(msg.state, state)) {
+        break;
+      }
 
-    case "play":
-      console.log("Plaaaaaay")
-      if (msg.pause) {
+      state = msg.state
+
+      player.currentTime(state.pos)
+      
+      if (!player.paused() && !state.play) {
         player.pause()
       }
 
-      if (!msg.pause) {
+      if (player.paused() && state.play) {
         player.play()
       }
 
-      break;
+      break
   }
 }
 
@@ -127,17 +137,33 @@ peer.on("connection", (conn) => {
 })
 
 
-function broadcast(msg: Message) {
-  console.log("Send", msg)
+function broadcast_state() {
+  const next = new State()
+  next.play = !player.paused()
+  next.pos = player.currentTime() || 0
+
+  if (State.eq(state, next)) {
+    return
+  }
+
+  state = next
+
+  console.log("Send state", state)
+
+  const msg = {
+    type: "state",
+    state: state,
+  }
+
   for (const conn of connections.values()) {
     console.log("Send to", conn.peer, msg)
     conn.send(msg)
   }
 }
 
-player.on('play', () => broadcast({ type: "play", pause: false }));
-player.on('pause', () => broadcast({ type: "play", pause: true }));
-player.on('seeked', () => broadcast({ type: "seek", pos: player.currentTime() || 0 }));
+player.on('play', () => broadcast_state())
+player.on('pause', () => broadcast_state())
+player.on('seeked', () => broadcast_state())
 
 
 window.addEventListener('resize', () => {
