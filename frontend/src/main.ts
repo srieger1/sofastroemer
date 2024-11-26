@@ -1,8 +1,6 @@
 import "./style.css"
-import "video.js/dist/video-js.css"
-import videojs from "video.js"
 import { Peer, DataConnection } from "peerjs"
-import $ from "jquery";
+import $ from "jquery"
 
 class State {
   play: boolean = false;
@@ -35,8 +33,8 @@ let connections = new Map<string, DataConnection>();
 
 const peer = new Peer()
 
-const player = videojs("video", {})
-player.src({src: "https://box.open-desk.net/Big Buck Bunny [YE7VzlLtp-4].mp4"});
+const player = document.querySelector("#video")! as HTMLVideoElement
+player.src = "https://box.open-desk.net/Big Buck Bunny [YE7VzlLtp-4].mp4";
 
 
 function on_data(conn: DataConnection, msg: Message) {
@@ -66,13 +64,13 @@ function on_data(conn: DataConnection, msg: Message) {
 
       state = msg.state
 
-      player.currentTime(state.pos)
+      player.currentTime = state.pos
       
-      if (!player.paused() && !state.play) {
+      if (!player.paused && !state.play) {
         player.pause()
       }
 
-      if (player.paused() && state.play) {
+      if (player.paused && state.play) {
         player.play()
       }
 
@@ -98,7 +96,6 @@ function on_connect(conn: DataConnection) {
       type: "peers",
       peers: [...connections.keys()]
     })
-
     connections.set(conn.peer, conn)
     update()
   })
@@ -139,8 +136,8 @@ peer.on("connection", (conn) => {
 
 function broadcast_state() {
   const next = new State()
-  next.play = !player.paused()
-  next.pos = player.currentTime() || 0
+  next.play = !player.paused
+  next.pos = player.currentTime
 
   if (State.eq(state, next)) {
     return
@@ -161,18 +158,58 @@ function broadcast_state() {
   }
 }
 
-player.on('play', () => broadcast_state())
-player.on('pause', () => broadcast_state())
-player.on('seeked', () => broadcast_state())
+player.addEventListener('play', () => broadcast_state())
+player.addEventListener('pause', () => broadcast_state())
+player.addEventListener('seeked', () => broadcast_state())
 
 
 window.addEventListener('resize', () => {
   const videoContainer = document.querySelector('.video-container') as HTMLDivElement;
   if (videoContainer) {
-    const aspectRatio = 16 / 9;
-    const width = Math.min(window.innerWidth * 0.9, 800);
-    videoContainer.style.width = `${width}px`;
-    videoContainer.style.height = `${width / aspectRatio}px`;
+    const aspectRatio = 16 / 9
+    const width = Math.min(window.innerWidth * 0.9, 800)
+    videoContainer.style.width = `${width}px`
+    videoContainer.style.height = `${width / aspectRatio}px`
   }
-});
+})
+
+document.querySelector("#play")?.addEventListener("click", (event) => {
+  event.preventDefault()
+
+  const fileInput = document.querySelector("#file") as HTMLInputElement
+  const file = fileInput!.files!.item(0)!
+
+  console.log(file)
+
+
+
+
+  // TODO: Figure out actual mime type and codec options
+  const mimeCodec = 'video/webm; codecs="vp8, vorbis"'
+
+  const mediaSource = new MediaSource()
+  
+  mediaSource.addEventListener("sourceopen", (e) => {
+    console.log("Source opened", e)
+
+    const sourceBuffer = mediaSource.addSourceBuffer(mimeCodec)
+
+    const reader = new FileReader()
+    reader.addEventListener("loadend", () => {
+      console.log("Reader ready", reader)
+
+      sourceBuffer.addEventListener("updateend", (e) => {
+        console.log("MediaSource ready", e, mediaSource)
+
+        mediaSource.endOfStream()
+      })
+
+      sourceBuffer.appendBuffer(new Uint8Array(reader.result! as ArrayBuffer))
+    })
+
+    reader.readAsArrayBuffer(file)
+  });
+
+  player.src = URL.createObjectURL(mediaSource)
+})
 
