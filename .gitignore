@@ -1,5 +1,12 @@
 /.envrc
 /.direnv
-
+/dist
+/node_modules
+/favicon.png
+/FFmpeg.txt
+/webpack.config.js
+/package-lock.json
+/package.json
+/tsconfig.json
 /videos
 
