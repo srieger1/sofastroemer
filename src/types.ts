@@ -23,6 +23,11 @@ export type PeersMessage = {
   peers: Array<string>;
 };
 
+export type StreamMessage = {
+  type: "stream";
+  stream: boolean;
+};
+
 export type StateMessage = {
   type: "state";
   state: State;
@@ -70,4 +75,9 @@ export type ReadyToSeek = {
   flag: boolean;
 }
 
-export type Message = PeersMessage | StateMessage | ChunkMessage | HeaderMessage | ResettingMediaSource | MediaSourceReady | EndOfStream | PlayerDuration | Seeked | ReadyToSeek;
+export type PlayPauseStreamig = {
+  type: "playPauseStreaming";
+  flag: boolean;
+}
+
+export type Message = PeersMessage | StateMessage | ChunkMessage | HeaderMessage | ResettingMediaSource | MediaSourceReady | EndOfStream | PlayerDuration | Seeked | ReadyToSeek | StreamMessage | PlayPauseStreamig;

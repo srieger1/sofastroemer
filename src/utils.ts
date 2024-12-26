@@ -1,22 +1,40 @@
-import { getMetaEntryReceiver, setMetaEntryReceiver } from "./receiver";
-import { player, mimeCodec, MAX_BUFFER_SIZE } from "./globalConstants";
+import { MetaEntry, CurrentBufferSizes } from "./types";
+import { mimeCodec, MAX_BUFFER_SIZE } from "../shared/globalConstants";
 import { getMediaSource, setMediaSource, getSourceBuffer, 
-    setSourceBuffer, setBufferQueue, getCurrentBufferSize, setCurrentBufferSize,
-setSeekedStateAllPeers, setMediaSourceStateAllPeers, getMediaSourceStateAllPeers,
-getSeekedStateAllPeers} from "./receiver";
-import { setBufferedBytesSender, getBufferedBytesSender } from "./sender";
-
+    setSourceBuffer, setBufferQueue
+} from "./receiver";
+import { bufferedBytesSender$, mediaSourceStateAllPeers$, 
+  seekedStateAllPeers$, MetaEntryReceiver$, currentBufferSize$, liveStream$, player } from "./stateVariables";
+import { Observable, of } from "rxjs";
+import { filter, first} from "rxjs/operators";
+import { toggelLiveIndicator } from "./style";
 
 let resolveCondition: (() => void) | null = null;
+let resolveConditionSender: (() => void) | null = null;
 
-export function updateMediaSourceStateAllPeers(flag: boolean) {
-  setMediaSourceStateAllPeers([...getMediaSourceStateAllPeers(), flag]);
-  triggerConditionCheck();
-}
 
-export function allPeersReadyToSeek(flag: boolean) {
-  setSeekedStateAllPeers([...getSeekedStateAllPeers(), flag]);
-  triggerConditionCheck();
+export function waitForConditionSender(condition: () => boolean): Promise<number> {
+  const startTime = performance.now();
+  return new Promise((resolve) => {
+    const checkCondition = () => {
+      if (condition()) {
+        console.log("Triggering condition check True1");
+        const endTime = performance.now();
+        resolve(endTime - startTime); // Bedingung erfüllt, auflösen
+      } else {
+        resolveConditionSender = () => {
+          if (condition()) {
+            console.log("Triggering condition check True2");
+            const endTime = performance.now();
+            resolve(endTime - startTime); // Beim nächsten Trigger prüfen
+            resolveConditionSender = null; // Zurücksetzen
+          }
+        };
+      }
+    };
+    checkCondition();
+  });
+
 }
 
 export function waitForCondition(condition: () => boolean): Promise<number> {
@@ -24,11 +42,13 @@ export function waitForCondition(condition: () => boolean): Promise<number> {
     return new Promise((resolve) => {
       const checkCondition = () => {
         if (condition()) {
+          console.log("Triggering condition check True1");
           const endTime = performance.now();
           resolve(endTime - startTime); // Bedingung erfüllt, auflösen
         } else {
           resolveCondition = () => {
             if (condition()) {
+              console.log("Triggering condition check True2");
               const endTime = performance.now();
               resolve(endTime - startTime); // Beim nächsten Trigger prüfen
               resolveCondition = null; // Zurücksetzen
@@ -40,7 +60,13 @@ export function waitForCondition(condition: () => boolean): Promise<number> {
     });
   
   }
-  
+/**
+ * Wartet auf ein Event und überprüft optional eine Bedingung.
+ * @param target Das Ziel, von dem das Event ausgelöst wird.
+ * @param eventName Der Name des Events.
+ * @param condition Optional: Eine Bedingung, die zusammen mit dem Event überprüft wird.
+ * @returns Promise, die aufgelöst wird, wenn das Event ausgelöst und die Bedingung erfüllt ist.
+ */
 export function waitForEventOrCondition(
     target: EventTarget, 
     eventName: string, 
@@ -65,16 +91,29 @@ export function waitForEventOrCondition(
     });
 }
 
+export function forceResolveConditionSender() {
+  if (resolveConditionSender) {
+      console.log("Force resolving condition.");
+      resolveConditionSender();
+      resolveConditionSender = null; // Auflösen, danach zurücksetzen
+  } else {
+      console.log("No condition to resolve.");
+  }
+}
+
 export function triggerConditionCheck() {
     if (resolveCondition) {
       resolveCondition();
+    }
+    if (resolveConditionSender) {
+      resolveConditionSender();
     }
 }
 
 export async function resetMediaSourceCompletely(): Promise<void> {
   //Setzte Variablen fürs Streaming auf Empfängeseite zurück
-  setMetaEntryReceiver([]);
-  setSeekedStateAllPeers([]);
+  removeMetaEntryReceiver();
+  removeSeekedStateAllPeers();
   let mediaSource = getMediaSource();
   updateBufferSize(0, false, false, true);
   if (mediaSource.readyState === "open") {
@@ -102,7 +141,6 @@ export async function resetMediaSourceCompletely(): Promise<void> {
   setBufferQueue([]); // Clear buffer queue
 
   player.src = URL.createObjectURL(mediaSource);
-
   return new Promise<void>((resolve, reject) => {
     mediaSource.addEventListener(
       "sourceopen",
@@ -117,6 +155,10 @@ export async function resetMediaSourceCompletely(): Promise<void> {
         try {
           sourceBuffer = mediaSource.addSourceBuffer(mimeCodec);
           //evtl Probleme mit dem SourceBuffer
+          //TEST LIVE STREAM!!!!!!!!!!! 
+          if(liveStream$.value){
+            mediaSource.duration = Infinity;
+          }
           setMediaSource(mediaSource);
           setSourceBuffer(sourceBuffer);
           console.log("MediaSource and SourceBuffer are ready.");
@@ -141,12 +183,11 @@ export async function resetMediaSourceCompletely(): Promise<void> {
 }
 
 export function updateBufferSize(change: number, addToLocalChunk: boolean, addNewChunk: boolean, removeAllChunks: boolean): void {
-  let currentBufferSize = getCurrentBufferSize();
+  let currentBufferSize = currentBufferSize$.value;
   if (addToLocalChunk) {//Small Chunks
     currentBufferSize.chunkSizes[currentBufferSize.chunkSizes.length - 1] += change;
     currentBufferSize.totalBufferSize += change;
-    setCurrentBufferSize(currentBufferSize);
-    triggerConditionCheck();
+    addCurrentBufferSize(currentBufferSize);
   }
   else if(!addToLocalChunk && !addNewChunk && !removeAllChunks){ 
     currentBufferSize.totalBufferSize -= change;
@@ -160,28 +201,28 @@ export function updateBufferSize(change: number, addToLocalChunk: boolean, addNe
     console.log("Remove all chunks from buffer and Resetting Variables");
     currentBufferSize.chunkSizes = [];
     currentBufferSize.totalBufferSize = 0;
-    setMetaEntryReceiver([]);
+    removeMetaEntryReceiver();
   }
-  setCurrentBufferSize(currentBufferSize);
+  addCurrentBufferSize(currentBufferSize);
   console.log(`Buffer size updated: ${currentBufferSize.totalBufferSize} bytes`, currentBufferSize.chunkSizes); 
 }
 
 export function canAddToBuffer(chunkSize: number): boolean {
-    return getCurrentBufferSize().totalBufferSize + chunkSize <= MAX_BUFFER_SIZE;
+    return currentBufferSize$.value.totalBufferSize + chunkSize <= MAX_BUFFER_SIZE;
 }
 
 export async function removeAllChunksFromSourceBuffer(): Promise<void> {
-  let MetaEntryReceiver = getMetaEntryReceiver();
+  //let MetaEntryReceiver = getMetaEntryReceiver();
   let sourceBuffer = getSourceBuffer();
-  console.log("MetaEntryReceiver: ", MetaEntryReceiver);
-  for (let i = 0; i < MetaEntryReceiver.length; i++) {
+  console.log("MetaEntryReceiver: ", MetaEntryReceiver$.value);
+  for (let i = 0; i < MetaEntryReceiver$.value.length; i++) {
     if (sourceBuffer.updating) {
       console.log("SourceBuffer is updating.");
       let timeForUpdate = await waitForEventOrCondition(sourceBuffer, "updateend", () => !sourceBuffer.updating);
       console.log("SourceBuffer update completed in ", timeForUpdate, "ms");
     }
     try {
-      sourceBuffer.remove(MetaEntryReceiver[i].start, MetaEntryReceiver[i].end);
+      sourceBuffer.remove(MetaEntryReceiver$.value[i].start, MetaEntryReceiver$.value[i].end);
       console.log("Removing ", i, "chunk from SourceBuffer");
       await waitForEventOrCondition(sourceBuffer, "updateend", () => !sourceBuffer.updating);
       setSourceBuffer(sourceBuffer); //evtl Probleme mit dem SourceBuffer
@@ -195,10 +236,74 @@ export async function removeAllChunksFromSourceBuffer(): Promise<void> {
 
 export function decrementbufferedBytesSender(reset: boolean = false, chunkSize: number) {
   if(reset){
-    setBufferedBytesSender(0);
+    removeBufferedBytesSender();
   }
   else{
-    setBufferedBytesSender(getBufferedBytesSender() - chunkSize);
+    addBufferedBytesSender(-chunkSize);
   }
-  triggerConditionCheck();
+}
+
+/**
+ * Wartet darauf, dass eine Bedingung erfüllt wird und löst die Promise auf.
+ * @param conditionFn Eine Funktion, die die Bedingung überprüft und `true` zurückgibt, wenn sie erfüllt ist.
+ * @param observable Optional: Ein RxJS Observable, das überprüft werden soll.
+ * @returns Promise, die aufgelöst wird, wenn die Bedingung erfüllt ist.
+ */
+export function waitForConditionRxJS<T>(
+  conditionFn: (value: T) => boolean,
+  observable?: Observable<T>
+): Promise<void> {
+  return new Promise((resolve) => {
+    const source = observable || of(true as unknown as T); // Verwende Observable oder Default-Wert
+
+    source
+      .pipe(
+        filter((value) => conditionFn(value)), // Bedingung mit dem emittierten Wert überprüfen
+        first() // Nur die erste Erfüllung der Bedingung verwenden
+      )
+      .subscribe({
+        next: () => resolve(), // Promise auflösen, wenn Bedingung erfüllt ist
+        error: (err) => console.error("Error in waitForConditionRxJS:", err),
+      });
+  });
+}
+
+export function addBufferedBytesSender(change: number){
+    bufferedBytesSender$.next(bufferedBytesSender$.value + change);
+}
+export function removeBufferedBytesSender(){
+  bufferedBytesSender$.next(0);
+}
+export function addMediaSourceStateAllPeers(flag: boolean) {
+    mediaSourceStateAllPeers$.next([...mediaSourceStateAllPeers$.value, flag]);
+}
+export function removeMediaSourceStateAllPeers() {
+    mediaSourceStateAllPeers$.next([]);
+}
+export function addSeekedStateAllPeers(flag: boolean) {
+    seekedStateAllPeers$.next([...seekedStateAllPeers$.value, flag]);
+}
+export function removeSeekedStateAllPeers() {
+    seekedStateAllPeers$.next([]);
+}
+export function addMetaEntryReceiver(metaEntry: MetaEntry) {
+    MetaEntryReceiver$.next([...MetaEntryReceiver$.value, metaEntry]);
+}
+export function removeMetaEntryReceiver() {
+    MetaEntryReceiver$.next([]);
+}
+export function shiftMetaEntryReceiver() {
+    let metaEntryReceiver = MetaEntryReceiver$.value;
+    metaEntryReceiver.shift();
+    MetaEntryReceiver$.next(metaEntryReceiver);
+}
+export function addCurrentBufferSize(currentBufferSize: CurrentBufferSizes) {
+    currentBufferSize$.next(currentBufferSize);
+}
+export function removeCurrentBufferSize() {
+    currentBufferSize$.next({chunkSizes: [], totalBufferSize: 0});
+}
+export function addliveStream(flag: boolean){
+    toggelLiveIndicator();//style anpassungen vom liveIndicator
+    liveStream$.next(flag);
 }

@@ -1,0 +1,5 @@
+npx tsc --project tsconfig.backend.json //compile
+node ./dist/backend/backendLiveStreaming.js //start node
+
+npx tsc --project tsconfig.frontend.json //compile
+http-server . -c-1 //start live server

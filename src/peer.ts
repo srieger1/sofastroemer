@@ -1,11 +1,11 @@
 import { Peer, DataConnection } from "peerjs";
 import $ from "jquery";
-import { State, Message } from "./types";
-import { player} from "./globalConstants";
+import { State, Message, MetaEntry } from "./types";
 import { onChunkReceived, onHeaderReceived, onEndOfStreamRecived, onPlayerDurationReceived, onSeekedReceived} from "./receiver";
 import { broadcastMediaSourceReady, broadcastReadyToSeek} from "./broadcastFunctions";
-import {resetMediaSourceCompletely, updateMediaSourceStateAllPeers, allPeersReadyToSeek} from "./utils";
-
+import { resetMediaSourceCompletely, addMediaSourceStateAllPeers, addSeekedStateAllPeers, waitForConditionRxJS, addliveStream} from "./utils";
+import { MetaEntryReceiver$, player, liveStream$ } from "./stateVariables";
+import { playPause } from "./style";
 
 let state = new State();
 let connections = new Map<string, DataConnection>();
@@ -33,20 +33,28 @@ export function initPeer() {
             break;
             }
             //Wir verändern den State des Players nur wenn der Buffer in einem Konsistenten Zustand ist
-            //Streng genommen muss der Buffer dirkt abgefragt werden
-            //await waitForCondition(() => MetaEntryReceiver.length > 1);
-            //await waitForCondition(() => msg.state.pos > MetaEntryReceiver[0].start && msg.state.pos < MetaEntryReceiver[MetaEntryReceiver.length - 1].end);
-    
+            //Streng genommen muss der Buffer dirkt abgefragt werden, aber schwer zu implementieren
+
+            console.log("MetaEntryReceiver:", MetaEntryReceiver$.value, "State:", msg.state.pos);
+            //Wir bekommen nur Probleme beim Seeken wenn keine Default URL verwendet wird
+            if (player.src.startsWith("blob:")) {
+                const start = performance.now();
+                await waitForConditionRxJS((value: MetaEntry[]) => value.length > 1 && msg.state.pos >= value[0]?.start && msg.state.pos <= value[value.length - 1]?.end && !liveStream$.value, MetaEntryReceiver$);
+                const end = performance.now();
+                //Prüfen ob der Buffer in einem Konsistenten Zustand ist MetaEntryReceiver$.value[MetaEntryReceiver$.value.length - 1]?.end <= msg.state.pos
+                console.log("Time to check condition, MetaEntryReciver contains the right first videoChunk:", end - start);
+            }
+
             state = msg.state;
     
             player.currentTime = state.pos;
     
             if (!player.paused && !state.play) {
-            player.pause();
+                playPause();
             }
     
             if (player.paused && state.play) {
-            player.play();
+                playPause();
             }
             break;
     
@@ -54,6 +62,7 @@ export function initPeer() {
             onChunkReceived(msg.data);
             break;
         case "header":
+            console.log("Header received");
             onHeaderReceived(msg.start, msg.end, msg.chunkSize);
             break;
         case "resettingMediaSource":
@@ -64,7 +73,7 @@ export function initPeer() {
             break;
         case "mediaSourceReady":
             if(msg.flag){
-            updateMediaSourceStateAllPeers(msg.flag);
+            addMediaSourceStateAllPeers(msg.flag);
             }
             break;
         case "endOfStream":
@@ -75,11 +84,25 @@ export function initPeer() {
             break;
         case "seeked":
             await onSeekedReceived(msg.time);
+            console.log("Broadcasting ready to seek");
             broadcastReadyToSeek(true);
             break;
         case "readyToSeek":
             if(msg.flag){
-            allPeersReadyToSeek(msg.flag);
+                console.log("Peers is ready to seek");
+                addSeekedStateAllPeers(msg.flag);
+            }
+            break;
+        case "stream":
+            addliveStream(msg.stream);
+            break;
+        case "playPauseStreaming":
+            if(msg.flag){
+                if(player.paused){
+                    player.play();
+                }else{
+                    player.pause();
+                }
             }
             break;
         }
@@ -135,6 +158,30 @@ export function initPeer() {
     
         on_connect(conn);
     });
+
+    //Probleme treten auf zwischen VideoChunks derern Zeitversatz relativ groß ist
+    player.addEventListener('error', (e) => {
+        console.error('Error encountered:', e);
+        // Try to recover
+        if (player.readyState === 4) { // 4 = HAVE_ENOUGH_DATA
+            console.log('Ignoring error and continuing playback.');
+            player.play().catch(console.error);
+        } 
+        else if(player.error !== null){
+            if(player.error.code === 3){
+                console.log("Media Source Error");
+                //Reset Media Source
+                //broadcastResettingStream(position);
+            }
+        }
+        else {
+            console.error('Playback cannot continue.');
+        }
+    });
+
+
+    
+      
 }
 export function getConnections(): Map<string, DataConnection> {
     return connections;

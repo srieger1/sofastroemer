@@ -2,10 +2,9 @@
 /.direnv
 /dist
 /node_modules
+/dist-backend
 /favicon.png
 /FFmpeg.txt
-/webpack.config.js
 /package-lock.json
-/package.json
-/tsconfig.json
 /videos
+/zwsUML.txt

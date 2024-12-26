@@ -1,10 +1,11 @@
-import { player } from "./globalConstants";
 import { State } from "./types";
+import { liveStream$, player } from "./stateVariables";
 import { getConnections, getState, setState } from "./peer";
-import { onChunkReceived, onPlayerDurationReceived, onHeaderReceived, onEndOfStreamRecived, onSeekedReceived, setMediaSourceStateAllPeers, setSeekedStateAllPeers} from "./receiver";
-import { resetMediaSourceCompletely, updateMediaSourceStateAllPeers } from "./utils";
+import { onChunkReceived, onPlayerDurationReceived, onHeaderReceived, onEndOfStreamRecived, onSeekedReceived} from "./receiver";
+import { addMediaSourceStateAllPeers, removeMediaSourceStateAllPeers, resetMediaSourceCompletely, removeSeekedStateAllPeers, addliveStream} from "./utils";
 
 export function broadcast_state() {
+  if(!liveStream$.value){//Nur wenn kein Livestream
     const next = new State();
     next.play = !player.paused;
     next.pos = player.currentTime;
@@ -23,6 +24,7 @@ export function broadcast_state() {
     for (const conn of getConnections().values()) {
       conn.send(msg);
     }
+  }
 }
 
 export function broadcastChunk(chunk: Uint8Array) {
@@ -105,7 +107,7 @@ export function broadcastReadyToSeek(flag: boolean) {
 export async function broadcastResettingMediaSource(flag: boolean) {
     //local reset
     console.log("Resetting MediaSourceAllPeers");
-    setMediaSourceStateAllPeers([]);
+    removeMediaSourceStateAllPeers();
   
     for (const conn of getConnections().values()) {
       conn.send({
@@ -117,11 +119,12 @@ export async function broadcastResettingMediaSource(flag: boolean) {
     //MediaSource resetten für den Initiator
     console.log("Resetting Mediasource for the initiator.");
     await resetMediaSourceCompletely();
-    updateMediaSourceStateAllPeers(true);
+    addMediaSourceStateAllPeers(true);
 }
 
 export async function broadcastSeeked(currentTime: number) {
-    setSeekedStateAllPeers([]);
+  if(!liveStream$.value){ //Nur wenn kein Livestream
+    removeSeekedStateAllPeers();
     for (const conn of getConnections().values()) {
       conn.send({
         type: "seeked",
@@ -131,3 +134,24 @@ export async function broadcastSeeked(currentTime: number) {
     console.log("Set seeked Position for Initator");
     await onSeekedReceived(currentTime);
   }
+}
+
+export function broadcastStreaming(flag: boolean) {
+  addliveStream(flag);//Nur für den Initiator
+  for (const conn of getConnections().values()) {
+      conn.send({
+      type: "stream",
+      flag: flag,
+      });
+  }
+}
+
+export function broadcastPlayPauseStreaming(flag: boolean) {
+  player.play();
+  for (const conn of getConnections().values()) {
+      conn.send({
+      type: "playPauseStreaming",
+      flag: flag,
+      });
+  }
+}

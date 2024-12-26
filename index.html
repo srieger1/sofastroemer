@@ -5,38 +5,6 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sofaströmer</title>
-
-    <style>
-       :root {
-         font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-         font-weight: 400;
-         line-height: 1.5;
-         color-scheme: light dark;
-         color: rgba(255, 255, 255, 0.87);
-         background-color: #242424;
-         text-rendering: optimizeLegibility;
-       }
-       body {
-         margin: 2rem;
-         display: flex;
-         justify-content: center;
-         align-items: center;
-         flex-direction: column;
-       }
-       .video-container {
-         position: relative;
-         width: 100%;
-         max-width: 800px;
-         height: auto;
-         aspect-ratio: 16 / 9;
-         background-color: black;
-       }
-       #video {
-         width: 100%;
-         height: 100%;
-         border-radius: 10px;
-       }
-    </style>
   </head>
 
   <body>
@@ -44,15 +12,50 @@
 
     <a id="link">Share Link</a></br>
 
-    <form>
-      <input type="file" id="file" accept="video/webm"/>
-      <button id="play" onClick="">Play</button>
+    <form id="controls">
+      <input type="file" id="file" accept="video/webm" />
+      <button id="play">Play</button>
+      <button id="live">LiveStream</button>
     </form>
 
-    <div class="video-container">
-      <video id="video" class="video-js" width="500" height="320" controls>
-      </video>
+    <div id="video-container">
+      <video id="video"></video>
+      <div id="video-overlay">
+        <div id="top-controls">
+          <div id="left-controls">
+            <button id="play-pause">
+              <img src="icons/play.svg" alt="Play" id="play-icon">
+              <img src="icons/pause.svg" alt="Pause" id="pause-icon" style="display: none;">
+            </button>
+            <span id="time-display">0:00 / 0:00</span>
+            <span id="live-indicator" style="opacity: 0;">LIVE</span>
+          </div>
+          <div id="right-controls">
+              <div id ="volume-container">
+                <button id="mute-unmute">
+                  <img src="icons/volume.svg" alt="Volume" id="volume-icon">
+                  <img src="icons/mute.svg" alt="Mute" id="mute-icon" style="display: none;">
+                </button>
+                <div id="volume-slider-container">
+                  <div id="volume-slider-container-vertical">
+                    <input id="volume-slider" orient="vertical" type="range" class="vertical" min="0" max="100" step="0.1" value="100">
+                  </div>
+                </div>
+              </div>
+            <button id="fullscreen">
+              <img src="icons/fullscreen.svg" alt="Fullscreen" id="fullscreen-icon" style="display: flex;">
+              <img src="icons/minimize.svg" alt="Minimize" id="minimize-icon" style="display: none;">
+            </button>
+          </div>
+        </div>
+        <div id="progress-bar-container">
+          <div id="progress-played"></div>
+          <div id="progress-buffered"></div>
+          <input id="progress-bar" type="range" min="0" max="100" step="0.1" value="0">
+        </div>
+      </div>
     </div>
+    
 
     <h3>Peers</h3>
     <pre id="peers">

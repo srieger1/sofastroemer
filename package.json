@@ -1,0 +1,39 @@
+{
+  "type": "module",
+  "scripts": {
+    "build-backend": "tsc --project tsconfig.backend.json",
+    "build-frontend": "npx webpack",
+    "start-backend": "node ./dist/backend/backendLiveStreaming.js",
+    "start-frontend": "http-server . -c-1 -p 8080",
+    "build": "npm run build-backend && npm run build-frontend",
+    "start": "npm run build && concurrently \"npm run start-backend\" \"npm run start-frontend\""
+  },
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.10",
+    "@ffmpeg/util": "^0.12.1",
+    "@types/jquery": "^3.5.32",
+    "@types/peerjs": "^0.0.30",
+    "@types/react": "^19.0.1",
+    "@types/ws": "^8.5.13",
+    "child_process": "^1.0.2",
+    "jquery": "^3.7.1",
+    "peerjs": "^1.5.4",
+    "react": "^19.0.0",
+    "rxjs": "^7.8.1",
+    "shaka-player": "^4.12.5",
+    "video.js": "^8.21.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ffmpeg": "^1.0.7",
+    "@types/node": "^22.10.2",
+    "concurrently": "^9.1.0",
+    "css-loader": "^7.1.2",
+    "style-loader": "^4.0.0",
+    "ts-loader": "^9.5.1",
+    "ts-node": "^10.9.2",
+    "webpack": "^5.97.1",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^5.2.0"
+  }
+}

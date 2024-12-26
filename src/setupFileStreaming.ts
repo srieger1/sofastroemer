@@ -1,13 +1,12 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import {fetchFile, toBlobURL} from '@ffmpeg/util';
-import { mimeCodec } from './globalConstants';
+import { mimeCodec } from '../shared/globalConstants';
 import { MetaEntry } from './types';
 
-
+let loaded = false;
 //Wenn man das effizenter Macht sollte man SEHR große Videos laden können
 export async function processVideoChunks(src: string) {
   const ffmpeg = new FFmpeg();
-  let loaded = false;
   let chunkCount = 0;
   let meta = "";
   let metaExaktDuration = "";
@@ -88,6 +87,15 @@ for (let i = 0; i < chunkCount; i++) {
   console.log("Test Meta", metaExaktDuration);
   const metaEntries = combineMetaAndParse(meta,metaExaktDuration, chunkSizes);
   console.log("Meta entries:", metaEntries);
+  const timeDifferences = metaEntries.slice(1).map((entry, index) => {
+    const previousEntry = metaEntries[index];
+    const difference = entry.start - previousEntry.end;
+    return { index: index + 1, difference };
+  });
+
+  timeDifferences.sort((a, b) => b.difference - a.difference);
+  console.log("Time differences (sorted):", timeDifferences);
+  
   console.log("Chunks created:", chunkCount);
   return {ffmpeg, chunkCount, metaEntries, uniqueIdentifier};
 }
