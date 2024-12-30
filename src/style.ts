@@ -1,6 +1,8 @@
 import { player, MetaEntryReceiver$ } from './stateVariables';
+import { thumbnail } from '../shared/globalConstants';
 import { MetaEntry } from './types';
 import { map, distinctUntilChanged } from 'rxjs/operators';
+import { thumbnailSpriteSheet$ } from './stateVariables';
 const playPauseButton = document.getElementById('play-pause') as HTMLButtonElement;
 const progressBar = document.getElementById('progress-bar') as HTMLInputElement;
 const progressPlayed = document.getElementById('progress-played') as HTMLDivElement;
@@ -18,6 +20,7 @@ const liveIndicator = document.getElementById("live-indicator") as HTMLImageElem
 const videoContainer = document.getElementById('video-container') as HTMLDivElement;
 const videoOverlay = document.getElementById('video-overlay') as HTMLDivElement;
 const timeDisplay = document.getElementById('time-display') as HTMLSpanElement;
+const thumbnailPreview = document.getElementById('thumbnail-preview') as HTMLImageElement;
 
 export function initStyle(){
   let mouseMoveTimeout: any;
@@ -41,6 +44,65 @@ export function initStyle(){
       videoOverlay.style.opacity = '0';
     }, 2000);
   }
+
+  progressBar.addEventListener('mousemove', (e) => {
+    if(!thumbnail) return;
+    const rect = progressBar.getBoundingClientRect();
+    const playerRect = document.getElementById('video-container')?.getBoundingClientRect() as DOMRect;
+    const percent = (e.clientX - rect.left) / rect.width;
+    const previewTime = player.duration * percent;
+   if (player.src.startsWith("blob:")) {
+      if(thumbnailSpriteSheet$.value.length === 0){
+        return;
+      }
+      
+      // Berechnung des passenden Sprite-Sheets
+      const spriteSheetDuration = 36*2; // Dauer eines Sprite-Sheets in Sekunden
+      const sheetIndex = Math.floor(previewTime / spriteSheetDuration);
+      if (!thumbnailSpriteSheet$.value[sheetIndex]) {
+        thumbnailPreview.style.display = "none";
+        return;
+      }
+      thumbnailPreview.style.display = "block";
+      const spriteSheetURL = thumbnailSpriteSheet$.value[sheetIndex];
+
+      // Berechnung des Thumbnails innerhalb des Sprite-Sheets
+      const spriteSheetStart = sheetIndex * spriteSheetDuration;
+      const timeInSpriteSheet = previewTime - spriteSheetStart;
+      const thumbnailInterval = 2; // Zeit zwischen Thumbnails
+      const thumbsPerRow = 6; // Thumbnails pro Zeile
+
+      const thumbnailIndex = Math.floor(timeInSpriteSheet / thumbnailInterval);
+      const row = Math.floor(thumbnailIndex / thumbsPerRow);
+      const col = thumbnailIndex % thumbsPerRow;
+
+      // Setze das Thumbnail als Hintergrund
+      const thumbnailWidth = 320;
+      const thumbnailHeight = 180;
+      thumbnailPreview.style.backgroundImage = `url(${spriteSheetURL})`;
+      thumbnailPreview.style.backgroundPosition = `-${col * thumbnailWidth}px -${row * thumbnailHeight}px`;
+      thumbnailPreview.style.width = `${thumbnailWidth}px`;
+      thumbnailPreview.style.height = `${thumbnailHeight}px`;
+
+      let thumbnailLeft = e.clientX - playerRect.left;
+
+      if (thumbnailLeft < thumbnailWidth / 2) {
+        thumbnailLeft = thumbnailWidth / 2; 
+      } else if (thumbnailLeft > (playerRect.width - (thumbnailWidth / 2) - (playerRect.width * 0.02))) {
+        thumbnailLeft = (playerRect.width - (thumbnailWidth / 2) - (playerRect.width * 0.02)); 
+      }
+
+      thumbnailPreview.style.left = `${thumbnailLeft}px`;
+    }
+    else{
+      thumbnailPreview.style.display = "none";
+    }
+  });
+
+  progressBar.addEventListener('mouseout', () => {
+    thumbnailPreview.style.display = "none";
+  });
+  
 
   videoContainer.addEventListener('mousemove', showOverlay);
 

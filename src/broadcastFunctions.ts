@@ -2,7 +2,9 @@ import { State } from "./types";
 import { liveStream$, player } from "./stateVariables";
 import { getConnections, getState, setState } from "./peer";
 import { onChunkReceived, onPlayerDurationReceived, onHeaderReceived, onEndOfStreamRecived, onSeekedReceived} from "./receiver";
-import { addMediaSourceStateAllPeers, removeMediaSourceStateAllPeers, resetMediaSourceCompletely, removeSeekedStateAllPeers, addliveStream} from "./utils";
+import { addMediaSourceStateAllPeers, removeMediaSourceStateAllPeers, 
+  resetMediaSourceCompletely, addliveStream, 
+updatePlayerRole, addSeekedStateEntryReadyToSeekAtTime} from "./utils";
 
 export function broadcast_state() {
   if(!liveStream$.value){//Nur wenn kein Livestream
@@ -95,10 +97,13 @@ export function broadcastMediaSourceReady(flag: boolean) {
     }
   }
   
-export function broadcastReadyToSeek(flag: boolean) {
+export function broadcastReadyToSeek(timestamp: number, flag: boolean) {
+  //local append
+  addSeekedStateEntryReadyToSeekAtTime(timestamp, flag);
     for (const conn of getConnections().values()) {
         conn.send({
         type: "readyToSeek",
+        timestamp: timestamp,
         flag: flag,
         });
     }
@@ -124,7 +129,6 @@ export async function broadcastResettingMediaSource(flag: boolean) {
 
 export async function broadcastSeeked(currentTime: number) {
   if(!liveStream$.value){ //Nur wenn kein Livestream
-    removeSeekedStateAllPeers();
     for (const conn of getConnections().values()) {
       conn.send({
         type: "seeked",
@@ -141,6 +145,17 @@ export function broadcastStreaming(flag: boolean) {
   for (const conn of getConnections().values()) {
       conn.send({
       type: "stream",
+      flag: flag,
+      });
+  }
+}
+
+export function broadcastPlayerRoles(flag: boolean) {
+  //Setting Role for Initiator(negirtes Flag(Sender) das gegenteil von allen Receivern)
+  updatePlayerRole(!flag);
+  for (const conn of getConnections().values()) {
+      conn.send({
+      type: "assignPlayerRole",
       flag: flag,
       });
   }

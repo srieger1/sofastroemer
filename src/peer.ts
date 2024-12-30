@@ -2,8 +2,10 @@ import { Peer, DataConnection } from "peerjs";
 import $ from "jquery";
 import { State, Message, MetaEntry } from "./types";
 import { onChunkReceived, onHeaderReceived, onEndOfStreamRecived, onPlayerDurationReceived, onSeekedReceived} from "./receiver";
-import { broadcastMediaSourceReady, broadcastReadyToSeek} from "./broadcastFunctions";
-import { resetMediaSourceCompletely, addMediaSourceStateAllPeers, addSeekedStateAllPeers, waitForConditionRxJS, addliveStream} from "./utils";
+import { broadcastMediaSourceReady} from "./broadcastFunctions";
+import { resetMediaSourceCompletely, addMediaSourceStateAllPeers, 
+    waitForConditionRxJS, addliveStream, updatePlayerRole, 
+    addSeekedStateEntryReadyToSeekAtTime} from "./utils";
 import { MetaEntryReceiver$, player, liveStream$ } from "./stateVariables";
 import { playPause } from "./style";
 
@@ -83,14 +85,12 @@ export function initPeer() {
             onPlayerDurationReceived(msg.duration);
             break;
         case "seeked":
-            await onSeekedReceived(msg.time);
-            console.log("Broadcasting ready to seek");
-            broadcastReadyToSeek(true);
+            await onSeekedReceived(msg.time);//Jeder Ruft die on Seeked auf nur der Initiator bekommt nie die Nachricht seeked
             break;
         case "readyToSeek":
             if(msg.flag){
-                console.log("Peers is ready to seek");
-                addSeekedStateAllPeers(msg.flag);
+                console.log("Peers is ready to seek add Entry");
+                addSeekedStateEntryReadyToSeekAtTime(msg.timestamp, msg.flag);
             }
             break;
         case "stream":
@@ -104,6 +104,9 @@ export function initPeer() {
                     player.pause();
                 }
             }
+            break;
+        case "assignPlayerRole":
+            updatePlayerRole(msg.flag);
             break;
         }
     }

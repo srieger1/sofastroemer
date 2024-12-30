@@ -17,6 +17,7 @@ export async function processVideoChunks(src: string) {
     ffmpeg.on('log', ({ message }) => {
         console.log(message);
         const preciseDurationMatch = message.match(/DURATION\s*:\s(\d{2}:\d{2}:\d{2}\.\d{9})/);
+        //const preciseDurationMatch = message.match(/Duration\s*:\s(\d{2}:\d{2}:\d{2}\.\d{2})/);
         if(preciseDurationMatch){
           if(toggel){
             metaExaktDuration += preciseDurationMatch + "\n";
@@ -49,13 +50,13 @@ await ffmpeg.exec([
     '-f',
     'segment',                  // Segmentierungsmodus
     '-segment_time',
-    '5',                       // Segmentdauer in Sekunden
+    '3',                       // Segmentdauer in Sekunden
     '-g',
-    '120',                       // GOP-Größe passend zur Segmentzeit FPS * Segmentzeit
+    '72',                       // GOP-Größe passend zur Segmentzeit FPS * Segmentzeit
     '-sc_threshold',
     '0',                        // Deaktiviert Szenenwechselerkennung für segmentiertes Encoding
     '-force_key_frames',
-    'expr:gte(t,n_forced*5)',  // Erzwingt Keyframes alle 5 Sekunden
+    'expr:gte(t,n_forced*3)',  // Erzwingt Keyframes alle 5 Sekunden
     '-reset_timestamps',
     '0',                        // Zurücksetzen der Timestamps pro Segment
     '-map',
@@ -80,7 +81,7 @@ for (let i = 0; i < chunkCount; i++) {
     `metadata.txt`
   ]);
 }
-  if(mimeCodec.includes("av01")){//Fix für AV1 Codec
+  if(mimeCodec.includes("av01") || mimeCodec.includes("vp9")){//Fix für AV1 VP9 Codec
     chunkCount--;
   }
   console.log("META", meta);
@@ -102,14 +103,16 @@ for (let i = 0; i < chunkCount; i++) {
 
 export function combineMetaAndParse(meta: string, metaDuration: string, chunkSizes: number[]): MetaEntry[] {
   let ignoreEntries = 1; // Ignoriere den ersten Eintrag standard für alle codecs
+  //let ignoreEntries = 0;
 
   const metaLines = meta.trim().split("\n").slice(ignoreEntries); 
   const metaDurationLines = metaDuration
     .trim()
     .split("\n")
     .map((line) => line.match(/DURATION\s*:\s*(\d{2}:\d{2}:\d{2}\.\d{9})/)?.[1])
+    //.map((line) => line.match(/Duration:\s*(\d{2}:\d{2}:\d{2}\.\d{2})/)?.[1])
     .filter((duration) => duration !== undefined) as string[];
-
+  console.log("Meta Duration Lines", metaDurationLines);
   const result: MetaEntry[] = [];
 
   metaLines.forEach((line, index) => {
@@ -121,12 +124,13 @@ export function combineMetaAndParse(meta: string, metaDuration: string, chunkSiz
 
       // Exakte Duration in Sekunden berechnen
       const durationParts = exactDuration.match(/(\d{2}):(\d{2}):(\d{2}\.\d{9})/);
+      //const durationParts = exactDuration.match(/(\d{2}):(\d{2}):(\d{2}\.\d{2})/);
       if (durationParts) {
         const [, hours, minutes, seconds] = durationParts;
         let durationInSeconds =
           parseFloat(hours) * 3600 + parseFloat(minutes) * 60 + parseFloat(seconds);
 
-        if(mimeCodec.includes("av01")){//Fix für AV1 Codec
+        if(mimeCodec.includes("av01")  || mimeCodec.includes("vp9")){//Fix für AV1 Codec
           if(index === 1){
             durationInSeconds = 0;
           }

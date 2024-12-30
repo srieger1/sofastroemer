@@ -13,6 +13,11 @@ export interface MetaEntry {
   byteLength: number;
 }
 
+export interface ReadyToSeekAtTime {
+  time: number;
+  readyStateAllPeers: boolean[];
+}
+
 export interface CurrentBufferSizes {
   chunkSizes: number[];
   totalBufferSize: number;
@@ -72,6 +77,7 @@ export type Seeked = {
 
 export type ReadyToSeek = {
   type: "readyToSeek";
+  timestamp: number;
   flag: boolean;
 }
 
@@ -80,4 +86,9 @@ export type PlayPauseStreamig = {
   flag: boolean;
 }
 
-export type Message = PeersMessage | StateMessage | ChunkMessage | HeaderMessage | ResettingMediaSource | MediaSourceReady | EndOfStream | PlayerDuration | Seeked | ReadyToSeek | StreamMessage | PlayPauseStreamig;
+export type AssignPlayerRole = {
+  type: "assignPlayerRole";
+  flag: boolean;
+}
+
+export type Message = PeersMessage | StateMessage | ChunkMessage | HeaderMessage | ResettingMediaSource | MediaSourceReady | EndOfStream | PlayerDuration | Seeked | ReadyToSeek | StreamMessage | PlayPauseStreamig | AssignPlayerRole;

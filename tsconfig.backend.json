@@ -19,6 +19,6 @@
     "noEmit": false
   },
   "include": [
-    "backend/**/*",
+    "additionalSenderLogic/**/*",
     "shared/**/*"]
 }

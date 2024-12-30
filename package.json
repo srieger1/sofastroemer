@@ -1,9 +1,10 @@
 {
   "type": "module",
   "scripts": {
-    "build-backend": "tsc --project tsconfig.backend.json",
+    "build-additionalSenderLogic": "tsc --project tsconfig.backend.json",
     "build-frontend": "npx webpack",
-    "start-backend": "node ./dist/backend/backendLiveStreaming.js",
+    "start-thumbnail": "node ./dist/additionalSenderLogic/thumbnail.js",
+    "start-livestreaming": "node ./dist/additionalSenderLogic/liveStreaming.js",
     "start-frontend": "http-server . -c-1 -p 8080",
     "build": "npm run build-backend && npm run build-frontend",
     "start": "npm run build && concurrently \"npm run start-backend\" \"npm run start-frontend\""
@@ -15,8 +16,12 @@
     "@types/peerjs": "^0.0.30",
     "@types/react": "^19.0.1",
     "@types/ws": "^8.5.13",
+    "axios": "^1.7.9",
     "child_process": "^1.0.2",
+    "cors": "^2.8.5",
     "jquery": "^3.7.1",
+    "multer": "^1.4.5-lts.1",
+    "node-fetch": "^3.3.2",
     "peerjs": "^1.5.4",
     "react": "^19.0.0",
     "rxjs": "^7.8.1",
@@ -25,7 +30,9 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.17",
     "@types/ffmpeg": "^1.0.7",
+    "@types/multer": "^1.4.12",
     "@types/node": "^22.10.2",
     "concurrently": "^9.1.0",
     "css-loader": "^7.1.2",

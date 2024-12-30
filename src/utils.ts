@@ -1,10 +1,11 @@
-import { MetaEntry, CurrentBufferSizes } from "./types";
+import { MetaEntry, CurrentBufferSizes, ReadyToSeekAtTime } from "./types";
 import { mimeCodec, MAX_BUFFER_SIZE } from "../shared/globalConstants";
 import { getMediaSource, setMediaSource, getSourceBuffer, 
     setSourceBuffer, setBufferQueue
 } from "./receiver";
 import { bufferedBytesSender$, mediaSourceStateAllPeers$, 
-  seekedStateAllPeers$, MetaEntryReceiver$, currentBufferSize$, liveStream$, player } from "./stateVariables";
+  seekedStateAllPeers$, MetaEntryReceiver$, currentBufferSize$, 
+  liveStream$, playerRole$, player, thumbnailSpriteSheet$ } from "./stateVariables";
 import { Observable, of } from "rxjs";
 import { filter, first} from "rxjs/operators";
 import { toggelLiveIndicator } from "./style";
@@ -113,7 +114,7 @@ export function triggerConditionCheck() {
 export async function resetMediaSourceCompletely(): Promise<void> {
   //Setzte Variablen fürs Streaming auf Empfängeseite zurück
   removeMetaEntryReceiver();
-  removeSeekedStateAllPeers();
+  resetSeekedStateAllPeers();
   let mediaSource = getMediaSource();
   updateBufferSize(0, false, false, true);
   if (mediaSource.readyState === "open") {
@@ -208,7 +209,8 @@ export function updateBufferSize(change: number, addToLocalChunk: boolean, addNe
 }
 
 export function canAddToBuffer(chunkSize: number): boolean {
-    return currentBufferSize$.value.totalBufferSize + chunkSize <= MAX_BUFFER_SIZE;
+  console.log("Current Buffer (Total Buffer) Size: ", currentBufferSize$.value.totalBufferSize);
+  return currentBufferSize$.value.totalBufferSize + chunkSize <= MAX_BUFFER_SIZE;
 }
 
 export async function removeAllChunksFromSourceBuffer(): Promise<void> {
@@ -268,6 +270,9 @@ export function waitForConditionRxJS<T>(
   });
 }
 
+export function updatePlayerRole(flag: boolean){
+  playerRole$.next(flag);
+}
 export function addBufferedBytesSender(change: number){
     bufferedBytesSender$.next(bufferedBytesSender$.value + change);
 }
@@ -280,10 +285,17 @@ export function addMediaSourceStateAllPeers(flag: boolean) {
 export function removeMediaSourceStateAllPeers() {
     mediaSourceStateAllPeers$.next([]);
 }
-export function addSeekedStateAllPeers(flag: boolean) {
-    seekedStateAllPeers$.next([...seekedStateAllPeers$.value, flag]);
+export function addSeekedStateAllPeers(readyToSeekEntry: ReadyToSeekAtTime) {
+    seekedStateAllPeers$.next([...seekedStateAllPeers$.value, readyToSeekEntry]);
 }
-export function removeSeekedStateAllPeers() {
+export function addSeekedStateEntryReadyToSeekAtTime(timestamp: number, flag: boolean) {
+    const updatedEntries = seekedStateAllPeers$.value.map(entry => 
+      entry.time === timestamp ? { ...entry, readyStateAllPeers: [...entry.readyStateAllPeers, flag] } : entry
+    );
+    seekedStateAllPeers$.next(updatedEntries);
+    console.log("SeekedStateAllPeers updated:", updatedEntries);
+}
+export function resetSeekedStateAllPeers() {
     seekedStateAllPeers$.next([]);
 }
 export function addMetaEntryReceiver(metaEntry: MetaEntry) {
@@ -306,4 +318,10 @@ export function removeCurrentBufferSize() {
 export function addliveStream(flag: boolean){
     toggelLiveIndicator();//style anpassungen vom liveIndicator
     liveStream$.next(flag);
+}
+export function addSpriteSheet(spriteSheet: string) {
+  thumbnailSpriteSheet$.next([...thumbnailSpriteSheet$.value, spriteSheet]);
+}
+export function removeSpriteSheet() {
+  thumbnailSpriteSheet$.next([]);
 }

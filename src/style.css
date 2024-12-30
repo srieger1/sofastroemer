@@ -52,14 +52,18 @@ form#controls {
   max-width: 800px;
   height: auto;
   aspect-ratio: 16 / 9;
-  background-color: black;
   overflow: hidden;
+  border-radius: 15px;
+  border-color: black;
+  background: black;
 }
+
 #video {
   position: absolute;
   width: 100%;
   height: 100%;
-  border-radius: 10px;
+  border-radius: 15px;
+  background: transparent;
 }
 
 #video-overlay {
@@ -70,9 +74,15 @@ form#controls {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 15px 0;
+  background: transparent;
+  padding: 8px 0;
   opacity: 0;
   transition: opacity 0.3s ease-in-out;
+}
+
+#video-overlay:has(#volume-container:hover) #progress-bar-container {
+  opacity: 0;
+  pointer-events: none;
 }
 
 #video-container:hover #video-overlay {
@@ -82,26 +92,48 @@ form#controls {
 #top-controls {
   display: flex;
   justify-content: space-between;
-  width: 95%;
+  width: 96%;
   align-items: center;
-  margin-bottom: 10px;
 }
 
 #left-controls, #right-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
 }
 
 #progress-bar-container {
   position: relative;
-  width: 96%;
-  height: 6px;
+  width: 98%;
+  height: 4px;
   background: rgba(50, 50, 50, 0.9); 
   border-radius: 5px;
   overflow: hidden;
   margin-top: 5px;
-  overflow: visible
+  overflow: visible;
+  margin-bottom: 10px;
+  transition: opacity 0.2s ease-in-out, height 0.2s ease;
+}
+
+#thumbnail-preview {
+  position: absolute;
+  bottom: 35px;
+  left: 0;
+  width: 28%;
+  height: auto;
+  border: 2px solid white;
+  border-radius: 7px;
+  display: none;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+#progress-bar-container:hover #thumbnail-preview {
+  display: block;
+}
+
+#progress-bar-container:hover {
+  height: 7px;
 }
 
 #progress-played {
@@ -114,6 +146,11 @@ form#controls {
   width: calc(var(--progress-value, 0%) - 6px);
   z-index: 1;
   border-radius: 5px;
+  transition: height 0.2s ease;
+}
+
+#progress-bar-container:hover #progress-played {
+  height: 9px;
 }
 
 #progress-buffered {
@@ -125,7 +162,12 @@ form#controls {
   background: rgba(211, 211, 211, 0.9);
   width: 0%;
   z-index: 0;
-  border-radius: 5px; 
+  border-radius: 5px;
+  transition: height 0.2s ease; 
+}
+
+#progress-bar-container:hover #progress-buffered {
+  height: 9px;
 }
 
 #progress-bar {
@@ -150,7 +192,8 @@ form#controls {
   cursor: pointer;
   position: relative;
   z-index: 3;
-  margin-top: -5.3px;
+  margin-top: -6.3px;
+  transition: width 0.2s ease, height 0.2s ease;
 }
 
 #progress-bar::-moz-range-thumb {
@@ -161,7 +204,8 @@ form#controls {
   border-radius: 50%;
   position: relative;
   z-index: 3;
-  margin-top: -5.3px; 
+  margin-top: -6.3px;
+  transition: width 0.2s ease, height 0.2s ease;
 }
 
 #progress-bar::-ms-thumb {
@@ -171,6 +215,22 @@ form#controls {
   border-radius: 50%;
   position: relative;
   z-index: 3;
+  transition: width 0.2s ease, height 0.2s ease;
+}
+
+#progress-bar-container:hover #progress-bar::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+}
+
+#progress-bar-container:hover #progress-bar::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+}
+
+#progress-bar-container:hover #progress-bar::-ms-thumb {
+  width: 15px;
+  height: 15px;
 }
 
 #progress-bar::-webkit-slider-runnable-track {
@@ -192,6 +252,7 @@ form#controls {
   height: 23px;
   flex-shrink: 0;
   flex-grow: 0;
+  margin: 3.5px;
 }
 
 #mute-unmute {
@@ -218,6 +279,7 @@ form#controls {
   z-index: 2;
   pointer-events: auto;
 }
+
 
 #volume-slider-container-vertical {
   position: absolute;
@@ -295,21 +357,27 @@ form#controls {
   margin-right: 1.2px;
 }
 
-button {
+button:not(#file, #play, #live) {
   background: none;
   border: none;
-  padding: 0;
   cursor: pointer;
+  position: relative;
+  display: flex;
+  max-width: 25px;
+  max-height: 25px;
 }
 
 button img {
   width: 20px;
   height: 20px;
   display: inline-block;
+  transition: width 0.2s ease, height 0.2s ease;
 }
 
 button img:hover {
   opacity: 0.9;
+  width: 22px;
+  height: 22px;
 }
 
 #live-indicator {
@@ -320,7 +388,7 @@ button img:hover {
 
 #time-display {
   color: white;
-  font-size: 14px;
+  font-size: 16px;
 }
 
 a {

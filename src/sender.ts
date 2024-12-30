@@ -2,11 +2,13 @@ import { processVideoChunks, loadVideoChunks } from "./setupFileStreaming";
 import { initFFmpegLiveStreaming, liveStreamingVBRtoCBR, onCBRDataAvailable } from "./setupLiveStreaming";
 import { defaultVideoURL, chunkSize, MAX_BUFFER_SIZE, LIVE_STREAMING_SPEED,
   MAX_BUFFER_STREAM_TIME, FRAME_RATE_LIVE_STREAMING,
-  recorderOptions, backendURL, directCBRMode, LIVE_STREAMING_DUMMY_FRAME_INTERVAL
+  recorderOptions, backendURL, directCBRMode, LIVE_STREAMING_DUMMY_FRAME_INTERVAL,
+  thumbnail
  } from "../shared/globalConstants";
 import {MetaEntry, CurrentBufferSizes} from "./types"
 import { broadcastResettingMediaSource, broadcastPlayerDuration, broadcastHeader, 
-  broadcastChunk, broadcastEndOfStream, broadcastStreaming, broadcastPlayPauseStreaming
+  broadcastChunk, broadcastEndOfStream, broadcastStreaming, broadcastPlayPauseStreaming,
+  broadcastPlayerRoles
   } from "./broadcastFunctions";
 import { getBufferQueue} from "./receiver";
 import { canAddToBuffer, removeBufferedBytesSender, addBufferedBytesSender,
@@ -15,15 +17,18 @@ import { canAddToBuffer, removeBufferedBytesSender, addBufferedBytesSender,
 import { getConnections } from "./peer";
 import { bufferedBytesSender$, currentBufferSize$, mediaSourceStateAllPeers$, liveStream$, player } from "./stateVariables";
 import { fetchFile } from "@ffmpeg/util";
+import { initThumbnailGeneration } from "./generateThumbnails";
 
 let MediaMetadata: MetaEntry[] = [];
 let lokalIndexForChunksSender = 0;
+let uniqueChunkIdentifier = 0;
 const dummyCanvas = document.createElement('canvas');
 const dummyContext = dummyCanvas.getContext('2d');
 
 export function initSender(){
     document.querySelector("#play")?.addEventListener("click", async (event) => {
         event.preventDefault();
+        broadcastPlayerRoles(true);//Setzt denjenigen der Play gedrückt hat als Sender, alle anderen Empfänger
         const fileInput = document.querySelector("#file") as HTMLInputElement;
         const file = fileInput?.files?.item(0);
         
@@ -40,6 +45,7 @@ export function initSender(){
         MediaMetadata = result.metaEntries;
         let uniqueIdentifier = result.uniqueIdentifier;
         let ffmpeg = result.ffmpeg;
+        if(thumbnail){initThumbnailGeneration(ffmpeg, totalNumberOfChunks,uniqueIdentifier, MediaMetadata);}
         broadcastResettingMediaSource(true);
         // Warte das alle Teilnehmer die Mediasource zurückgesetzt haben
         console.log("Waiting for all peers to reset MediaSource...");
@@ -53,7 +59,7 @@ export function initSender(){
        lokalIndexForChunksSender = 0;  //Nur für den Sender Relevant
        removeBufferedBytesSender(); //Nur für den Sender Relevant
        while(lokalIndexForChunksSender < totalNumberOfChunks || (bufferedBytesSender$.value + MediaMetadata[lokalIndexForChunksSender].byteLength) <= MAX_BUFFER_SIZE){ {
-          console.log("Buffered chunks:", bufferedBytesSender$.value);
+          console.log("Buffered chunks:", bufferedBytesSender$.value, "MetaMediaData ByteLength:", MediaMetadata[lokalIndexForChunksSender].byteLength);
           if((bufferedBytesSender$.value + MediaMetadata[lokalIndexForChunksSender].byteLength) > MAX_BUFFER_SIZE){ 
             const start = performance.now();
             await waitForConditionRxJS((value: number) => value + MediaMetadata[lokalIndexForChunksSender].byteLength <= MAX_BUFFER_SIZE, bufferedBytesSender$);
@@ -210,16 +216,30 @@ async function startSendingChunks(data: Uint8Array) {
           console.warn(
             `Cannot add chunk of size ${chunk.byteLength}. Buffer limit of ${MAX_BUFFER_SIZE} bytes reached.`
           );
-          return;
         }
         if (getBufferQueue().length > 100) { //Sollte nicht vorkommen deshalb auch nicht Overengineered
           console.log("Buffer queue full. Waiting before loading more chunks...");
           await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
-      broadcastChunk(chunk);
+      //Einzigartige ID für jeden Chunk, damit er wieder in der Richigen Reihenfolge zusammengesetzt werden kann
+      const chunkWithId = add32BitNumberToChunk(chunk, uniqueChunkIdentifier);
+      broadcastChunk(chunkWithId);
+      uniqueChunkIdentifier++;
     };
   }
+
+  function add32BitNumberToChunk(chunk: Uint8Array, number: number): Uint8Array {
+    if (number < 0 || number > 0xFFFFFFFF) {
+        console.error("Number out of range for 32-bit number. Over 5000 Terabyte not supported. Please Restart the Application.");
+    }
+    const buffer = new Uint8Array(4 + chunk.length);
+    const view = new DataView(buffer.buffer);
+    view.setUint32(0, number, true); // Little-endian
+    buffer.set(chunk, 4);
+
+    return buffer;
+}
 
 export function getMediaMetadata(): MetaEntry[] {
     return MediaMetadata;

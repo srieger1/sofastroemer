@@ -2,6 +2,7 @@
 
 /**
  * mimeCodec: Genereller Codec für Sofastroemer Projekt(HTLM5 Video Element und MSE)
+ * Upload Files müssen in webm sein NICHT MP4!!!
  */
 //export const mimeCodec = 'video/webm; codecs="av01.0.08M.08", opus'; // AV1 Codec opus(am besten)
 //export const mimeCodec = 'video/webm; codecs="vp8, vorbis"'; // VP8 Codec
@@ -27,7 +28,11 @@ if (mimeCodec.split(';')[0] !== mimeCodecLiveStreaming.split(';')[0]) {
 }*/
 
 export const MAX_BUFFER_SIZE = 25 * 1024 * 1024; // 25 MB
+//chunkSizes sind hard Random was gut funktioniert, muss man testen
+//export const chunkSize = 512 * 1024; // 512 KB
 export const chunkSize = 256 * 1024; // 256 KB
+//export const chunkSize = 64 * 1024; // 64 KB
+export const MAX_NUMBER_OF_DELAYED_CHUNKS = 100; // 100 Chunks(25 MB), wenn die Anzahl überschriten wird hat man gelitten und man muss den ganzen Stream neustarten
 export const LIVE_STREAMING_SPEED = 1000; // 1 Sekunde
 export const LIVE_STREAMING_DUMMY_FRAME_INTERVAL = LIVE_STREAMING_SPEED / 10; // 0.1 Sekunden
 export const CBR_AUDIO = '128k'; // 128 kbit/s
@@ -43,7 +48,7 @@ export const KEYFRAME_INTERVAL = 2; // Alle 2 Sekunden ein Keyframe
 export const VIDEOCODECPRESET = 'fast';
 */
 
-//Mehr Rechenintensiv für LiveStreaming VBR zu CBR
+/* //Mehr Rechenintensiv für LiveStreaming VBR zu CBR
 export const directCBRMode = false;
 export const FRAME_RATE_LIVE_STREAMING = 60; // 60 FPS
 export const CBR_BITRATE = '5000k'; // 5 Mbit/s
@@ -51,10 +56,10 @@ export const CBR_BUFFER = '2000k'; // 10 Mbit Buffer
 export const KEYFRAME_INTERVAL = FRAME_RATE_LIVE_STREAMING; // Keyframe alle 1 Sekunden
 export const VIDEOCODECPRESET = 'slow'; // Maximale Qualität
 export const VIDEOCRF = '0';       // Konstante Qualität
-export const FRAGMENT_DURATION = '1000';
+export const FRAGMENT_DURATION = '1000'; */
 
-/*
-//Direkte CBR Aufnahme im Backend
+
+/* //Direkte CBR Aufnahme im Backend
 export const directCBRMode = true; // Direkter CBR Modus
 export const FRAME_RATE_LIVE_STREAMING = 60; // 60 FPS
 export const CBR_BITRATE = '5000k'; // 5 Mbit/s
@@ -62,8 +67,18 @@ export const CBR_BUFFER = '2000k'; // 2 Mbit Buffer
 export const KEYFRAME_INTERVAL = (FRAME_RATE_LIVE_STREAMING / 2); // Keyframe alle 0,5 Sekunden
 export const VIDEOCODECPRESET = 'slow'; // Maximale Qualität
 export const VIDEOCRF = '0';       // Konstante Qualität
-export const FRAGMENT_DURATION = '1000'; // 0.1 Sekunde
-*/
+export const FRAGMENT_DURATION = '1000'; // 0.1 Sekunde */
+
+//Etwas weniger Rechenintensiv für LiveStreaming direkt CBR
+export const directCBRMode = true; // Direkter CBR Modus
+export const FRAME_RATE_LIVE_STREAMING = 30; // 60 FPS
+export const CBR_BITRATE = '3500k'; // 5 Mbit/s
+export const CBR_BUFFER = '7000k'; // 2 Mbit Buffer
+export const KEYFRAME_INTERVAL = (FRAME_RATE_LIVE_STREAMING); // Keyframe alle 0,5 Sekunden
+export const VIDEOCODECPRESET = 'slow'; // Maximale Qualität
+export const VIDEOCRF = '0';       // Konstante Qualität
+export const FRAGMENT_DURATION = '10000'; // 0.5 Sekunde
+
 /**
  * Gibt die Zeit eines Segmentes auf der Empfängerseite an(nur für Live Streaming) IN SEKUNDEN
  * Bei 10 sekündigen Segmenten wird bei Ende des zweiten Segmentes das erste Segment gelöscht
@@ -121,7 +136,10 @@ export const recorderOptions = {
 
 export const defaultVideoURL = "https://box.open-desk.net/Big Buck Bunny [YE7VzlLtp-4].mp4";
 //export const defaultVideoURL = "https://ftp.nluug.nl/pub/graphics/blender/demo/movies/ToS/tearsofsteel_4k.mov";
-//export const defaultVideoURL = "";
 
 export const backendURL = 'ws://localhost:8081';
 export const backendPort = 8081;
+export const backendThumbnailPort = 8082;
+export const thumbnailOutputDir = 'thumbnails';
+export const thumbnailSpriteSheetOutputDir = 'spriteSheets';
+export const thumbnail = true;
