@@ -1,6 +1,7 @@
 import WebSocket, { WebSocketServer } from 'ws';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
-import {ffmpegConfigLiveStreaming, backendPort, directCBRMode, FRAME_RATE_LIVE_STREAMING
+import {ffmpegConfigLiveStreaming, backendPort, directCBRMode, FRAME_RATE_LIVE_STREAMING,
+  OBS_MODE, OBS_RTMP_URL
 } from '../shared/globalConstants.js';
 
 let ffmpeg: ChildProcessWithoutNullStreams | null = null;
@@ -41,10 +42,18 @@ export function startLiveStreamingBackend(port: number): void {
     // Setup FFmpeg process
     if (!ffmpeg) {
       if (directCBRMode) {
-        initFFmpegScreenRecording((chunk) => {
-          ws.send(chunk);
-        });
-      } else {
+        if(OBS_MODE){
+          //todo OBS Modus
+          initFFmpegOBSLiveStreaming((chunk) => {
+            ws.send(chunk);
+          });
+        }else{
+          initFFmpegScreenRecording((chunk) => {
+            ws.send(chunk);
+          });
+        }
+      } 
+      else {
         initFFmpegLiveStreaming((chunk) => {
           ws.send(chunk);
         });
@@ -141,6 +150,43 @@ function initFFmpegScreenRecording(onData: (chunk: Buffer) => void): void {
     ffmpeg = null;
   });
 }
+
+/**
+ * Initializes the FFmpeg process.
+ * @param {function} onData - Callback to handle processed CBR data.
+ */
+function initFFmpegOBSLiveStreaming(onData: (chunk: Buffer) => void): void {
+  console.log('Initializing FFmpeg for live streaming with: ', ffmpegConfigLiveStreaming);
+  ffmpeg = spawn('ffmpeg', [
+    '-i', OBS_RTMP_URL,                                     // Input from RTMP Server
+    '-c:v', ffmpegConfigLiveStreaming.videoCodec,            // Hardware-accelerated H.264 encoding
+    '-preset', ffmpegConfigLiveStreaming.videoPreset,               // Encoding speed
+    '-crf', ffmpegConfigLiveStreaming.videoCRF,                  // Constant Rate Factor
+    '-b:v', ffmpegConfigLiveStreaming.videoBitrate,                    // Constant Bitrate
+    '-g', ffmpegConfigLiveStreaming.keyframeInterval,                      // Keyframe interval (1 keyframe per 60 frames)
+    '-c:a', ffmpegConfigLiveStreaming.audioCodec,                   // AAC-Audio hinzufügen
+    '-b:a', ffmpegConfigLiveStreaming.audioBitrate,                  // Audiobitrate
+    ffmpegConfigLiveStreaming.audioPreset,                  // Audio encoding speed
+    '-frag_duration', ffmpegConfigLiveStreaming.fragmentDuration,      // Kürzere Länge zwischen Audio und Video
+    '-movflags', 'frag_keyframe+empty_moov+default_base_moof', // Fragmented MP4 for streaming
+    '-f', ffmpegConfigLiveStreaming.format,                     // MP4 container format
+    'pipe:1',                                              // Output to STDOUT
+  ]);
+
+  ffmpeg.stdout.on('data', (chunk: Buffer) => {
+    onData(chunk); // Pass the processed data back to the callback
+  });
+
+  ffmpeg.stderr.on('data', (err) => {
+    console.error(err.toString());
+  });
+
+  ffmpeg.on('close', (code: number) => {
+    console.log(`FFmpeg process exited with code ${code}`);
+    ffmpeg = null;
+  });
+}
+
 
 /**
  * Toggles between VBR-to-CBR conversion and direct CBR screen recording.

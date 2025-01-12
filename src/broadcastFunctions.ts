@@ -44,6 +44,17 @@ export function broadcastChunk(chunk: Uint8Array) {
   }
 }
 
+export function broadcastThumbnailSpriteSheet(data: Uint8Array) {
+  //Broadcast chunk to all connected peers
+  for (const conn of getConnections().values()) {
+    console.log(`Sending thumbnailSpriteSheet to peer: ${conn.peer}`);
+    conn.send({
+      type: "thumbnailSpriteSheet",
+      data: data,
+    });
+  }
+}
+
 export function broadcastPlayerDuration(duration: number) {
   //local append
   console.log("Set duration locally for the initiator.");

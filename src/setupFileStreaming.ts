@@ -1,6 +1,6 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import {fetchFile, toBlobURL} from '@ffmpeg/util';
-import { mimeCodec } from '../shared/globalConstants';
+import { mimeCodec, SEGMENT_DURATION_GOP_KEYFRAME, VIDEO_FPS } from '../shared/globalConstants';
 import { MetaEntry } from './types';
 
 let loaded = false;
@@ -50,13 +50,13 @@ await ffmpeg.exec([
     '-f',
     'segment',                  // Segmentierungsmodus
     '-segment_time',
-    '3',                       // Segmentdauer in Sekunden
+    `${SEGMENT_DURATION_GOP_KEYFRAME}`,  // Segmentdauer in Sekunden
     '-g',
-    '72',                       // GOP-Größe passend zur Segmentzeit FPS * Segmentzeit
+    `${VIDEO_FPS * SEGMENT_DURATION_GOP_KEYFRAME}`, // GOP-Größe passend zur Segmentzeit FPS * Segmentzeit
     '-sc_threshold',
     '0',                        // Deaktiviert Szenenwechselerkennung für segmentiertes Encoding
     '-force_key_frames',
-    'expr:gte(t,n_forced*3)',  // Erzwingt Keyframes alle 5 Sekunden
+    `expr:gte(t,n_forced*${SEGMENT_DURATION_GOP_KEYFRAME})`,  // Erzwingt Keyframes alle n Sekunden
     '-reset_timestamps',
     '0',                        // Zurücksetzen der Timestamps pro Segment
     '-map',

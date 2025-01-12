@@ -3,7 +3,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
-import { backendThumbnailPort, thumbnailOutputDir, thumbnailSpriteSheetOutputDir } from '../shared/globalConstants.js';
+import { backendThumbnailPort, thumbnailOutputDir, thumbnailSpriteSheetOutputDir, thumbnailUploadDir } from '../shared/globalConstants.js';
 
 const corsOptions = {
   origin: ['http://127.0.0.1:8080', 'http://192.168.178.62:8080'], // Erlaubte Quellen
@@ -15,6 +15,9 @@ const app = express();
 app.use(cors(corsOptions));
 app.use('/thumbnails', express.static(path.resolve(thumbnailOutputDir)));
 app.use('/spriteSheets', express.static(path.resolve(thumbnailSpriteSheetOutputDir)));
+let testCounter = 0;
+let globalRemainder = 0;
+const activeProcesses = new Set<Promise<void>>();
 
 /**
  * Löscht den Inhalt von Ordnern sonst zu viele Datein.
@@ -38,6 +41,7 @@ function clearFolder(folderPath: string): void {
 
 clearFolder(thumbnailOutputDir);
 clearFolder(thumbnailSpriteSheetOutputDir);
+clearFolder(thumbnailUploadDir);
 
 if (!fs.existsSync(thumbnailOutputDir)) {
   fs.mkdirSync(thumbnailOutputDir);
@@ -72,17 +76,25 @@ function generateThumbnailFromBuffer(chunkData: Buffer, outputPath: string): Pro
       ffmpegCommand = [
         '-i', tempChunkPath,
         '-vf', 'fps=1/2,scale=w=320:h=-1:force_original_aspect_ratio=decrease,pad=320:180:(ow-iw)/2:(oh-ih)/2',
-        '-qscale:v', '1',
+        '-qscale:v', '2',
         outputPath
       ];
       const ffmpegProcess = spawn('ffmpeg', ffmpegCommand);
 
-      ffmpegProcess.on('close', (code) => {
-        fs.unlinkSync(tempChunkPath); // Temporäre Datei löschen
+      ffmpegProcess.on('close', async (code) => {
         if (code === 0) {
+          const fileCount = getFileCount(`${thumbnailOutputDir}\\`);
+          const remainder = (end - start) % 2;
+          globalRemainder += remainder;
+          console.log("FileCount: ", fileCount, "Expected: ", Math.floor(end / 2), "Remainder: ", remainder, "GlobalRemainder: ", globalRemainder);
+            if(fileCount < Math.floor(end / 2) || (globalRemainder % 2) > 1){//Zu wenige Files oder Zeitabweichung zu groß
+              await generateExtraThumbnail(outputPath,start, end, tempChunkPath);
+            }
+            fs.unlinkSync(tempChunkPath); // Temporäre Datei löschen
           resolve();
         } else {
-          reject(new Error(`FFmpeg process exited with code ${code}`));
+          fs.unlinkSync(tempChunkPath); // Temporäre Datei löschen
+          reject(new Error(`FFmpeg process exited with code ${code}`)); 
         }
       });
     }else{
@@ -91,8 +103,44 @@ function generateThumbnailFromBuffer(chunkData: Buffer, outputPath: string): Pro
       resolve();
     }
   });
+
+  
 }
 
+function generateExtraThumbnail(outputPath: string, start: number, end: number, tempChunkPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    testCounter++;
+    let numberOfGeneratedThumbnails = Math.floor((end - start) / 2);
+    let skipPostionTimeStamp = (end - start - 0.2);
+    const hours = Math.floor(skipPostionTimeStamp / 3600).toString().padStart(2, '0');
+    const minutes = Math.floor((skipPostionTimeStamp % 3600) / 60).toString().padStart(2, '0');
+    const seconds = Math.floor(skipPostionTimeStamp % 60).toString().padStart(2, '0');
+    const milliseconds = Math.round((skipPostionTimeStamp % 1) * 100).toString().padStart(2, '0');
+    const formattedSkipPosition = `${hours}:${minutes}:${seconds}.${milliseconds}`;
+    const newOutputPath = outputPath.replace('%03d', (numberOfGeneratedThumbnails + 1).toString().padStart(3, '0'));
+    //Extra Thumbnail notwendig
+    //console.log("Extra Thumbnail notwendig, path: ", newOutputPath, "SkipPosition (in the Chunk): ", formattedSkipPosition);
+    let extraffmpegCommand:string[] = [];
+    extraffmpegCommand = [
+      '-y', // Overwrite existing file
+      '-ss', formattedSkipPosition, // Seek to the end of the file
+      '-i', tempChunkPath,
+      '-frames:v', '1', // Output 1 frame
+      '-vf', 'scale=w=320:h=-1:force_original_aspect_ratio=decrease,pad=320:180:(ow-iw)/2:(oh-ih)/2',
+      '-qscale:v', '2',
+      newOutputPath
+    ];
+    const extraffmpegProcess = spawn('ffmpeg', extraffmpegCommand);
+    extraffmpegProcess.on('close', (code) => {
+      if (code === 0) {
+        console.log("Extra Thumbnail erfolgreich generiert.");
+        resolve();
+      } else {
+        reject(new Error(`FFmpeg process exited with code ${code}`));
+      }
+    });
+  });
+}
 /**
  * API-Endpunkt zum Empfangen von Chunk-Daten und Generieren eines Thumbnails.
  */
@@ -103,8 +151,9 @@ app.post('/generate-thumbnail', express.json({ limit: '1000mb' }), async (req: R
   }
   try {
     const thumbnailPath = path.join(thumbnailOutputDir, `${chunkName}.jpg`);
-    console.log(`Output Path: ${thumbnailPath}`);
-    await generateThumbnailFromBuffer(Buffer.from(chunkData, 'base64'), thumbnailPath);
+    console.log(`Output Path: ${thumbnailPath}, endOfFile: ${endOfFile}`);
+    trackProcess(generateThumbnailFromBuffer(Buffer.from(chunkData, 'base64'), thumbnailPath));
+    console.log(`Thumbnail ${thumbnailPath} erfolgreich generiert: ${thumbnailPath}, endOfFile: ${endOfFile}`);
     if(endOfFile){
       const endMatch = thumbnailPath.match(/-(\d+\.\d+)_/);
       if (endMatch) {
@@ -115,11 +164,14 @@ app.post('/generate-thumbnail', express.json({ limit: '1000mb' }), async (req: R
           console.log("Keine VideoID gefunden.");
         }
         const videoId = videoIdMatch[1];
+        await Promise.all(activeProcesses);
         console.log("End of Video, es wurden alle Thumbnails generiert.");
         //Starte die Generierung des Sprite-Sheets
         console.log("VideoID: ", `video_${videoId}`);
+        //await new Promise(resolve => setTimeout(resolve, 10000));//Testweise 10 Sekunden warten
         await generateSpriteSheetForVideoChunk(`${thumbnailOutputDir}\\`, `video_${videoId}` , 0, end, `${thumbnailSpriteSheetOutputDir}\\sprite_sheet_%03d.jpg`);
-      }
+        //clearFolder(thumbnailOutputDir);
+      } 
     }
     
     res.status(200).json({ message: 'Thumbnail generated successfully.', thumbnailPath });
@@ -129,6 +181,21 @@ app.post('/generate-thumbnail', express.json({ limit: '1000mb' }), async (req: R
     res.status(500).json({ error: 'Failed to generate thumbnail.' });
   }
 });
+
+/**
+ * Gibt die Anzahl der Dateien in einem Verzeichnis zurück.
+ * @param dirPath - Der Pfad zum Verzeichnis.
+ * @returns {number} - Die Anzahl der Dateien im Verzeichnis.
+ */
+function getFileCount(dirPath: string): number {
+  if (fs.existsSync(dirPath)) {
+    const files = fs.readdirSync(dirPath);
+    return files.length;
+  } else {
+    console.log(`Verzeichnis '${dirPath}' existiert nicht.`);
+    return 0;
+  }
+} 
 
 /**
  * Holt alle Thumbnails für ein Sprite-Sheet basierend auf dem Zeitbereich.
@@ -157,10 +224,10 @@ function getThumbnailsForSpriteSheet(
       const start = parseFloat(match[1]);
       const end = parseFloat(match[2]);
       if (file.startsWith(videoId) && start >= startTime && end <= endTime) {
-        console.log(`File: ${file}`, "Start:", start, "End:", end, "Total:", countFiles, "Round", Math.round(end));
+        //console.log(`File: ${file}`, "Start:", start, "End:", end, "Total:", countFiles, "Round", Math.round(end));
         if(countFiles >= Math.round(end)){//Im schnitt passt das(kann manchmal zu Rundungsfehlern führen, merkt man aber net)
           counterIngnoredFiles++;
-          console.log(`Ignoriere File: ${file}`, "Total:", counterIngnoredFiles);
+          //console.log(`Ignoriere File: ${file}`, "Total:", counterIngnoredFiles);
         }
         else{
           result.push(path.join(dir, file));
@@ -209,7 +276,7 @@ function createSpriteSheet(listFilePath: string, outputPath: string): Promise<vo
     });
   });
 }
-
+ 
 async function generateSpriteSheetForVideoChunk(
   dir: string,
   videoId: string,
@@ -225,11 +292,19 @@ async function generateSpriteSheetForVideoChunk(
     createInputFile(thumbnails, listFilePath);
     // Sprite-Sheet erstellen
     await createSpriteSheet(listFilePath, outputPath);
-    console.log(`Sprite-Sheet erfolgreich erstellt: ${outputPath}`);
+    //clearFolder(thumbnailOutputDir);
+    console.log(`Sprite-Sheet erfolgreich erstellt: ${outputPath}, TestCounter: ${testCounter}`);
   } catch (error) {
+    //clearFolder(thumbnailOutputDir);
     console.error('Fehler bei der Sprite-Sheet-Generierung:', error);
   }
 }
+
+function trackProcess(promise: Promise<void>) {
+  activeProcesses.add(promise);
+  promise.finally(() => activeProcesses.delete(promise));
+}
+
 
 // Backend starten
 const thumbnailPort = backendThumbnailPort;

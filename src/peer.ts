@@ -1,7 +1,8 @@
 import { Peer, DataConnection } from "peerjs";
 import $ from "jquery";
 import { State, Message, MetaEntry } from "./types";
-import { onChunkReceived, onHeaderReceived, onEndOfStreamRecived, onPlayerDurationReceived, onSeekedReceived} from "./receiver";
+import { onChunkReceived, onHeaderReceived, onEndOfStreamRecived, 
+    onPlayerDurationReceived, onSeekedReceived, onThumbnailSpriteSheetReceived} from "./receiver";
 import { broadcastMediaSourceReady} from "./broadcastFunctions";
 import { resetMediaSourceCompletely, addMediaSourceStateAllPeers, 
     waitForConditionRxJS, addliveStream, updatePlayerRole, 
@@ -108,10 +109,15 @@ export function initPeer() {
         case "assignPlayerRole":
             updatePlayerRole(msg.flag);
             break;
+        case "thumbnailSpriteSheet":
+            onThumbnailSpriteSheetReceived(msg.data);
+            break;
         }
+
     }
 
     function on_connect(conn: DataConnection) {
+        conn.options.reliable = true;
         function update() {
         let peers = "";
         for (let x of connections.keys()) {
@@ -138,7 +144,7 @@ export function initPeer() {
         });
     
         conn.on("data", (msg) => {
-        on_data(conn, msg as Message);
+            on_data(conn, msg as Message);
         });
     }
     

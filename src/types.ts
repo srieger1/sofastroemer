@@ -91,4 +91,9 @@ export type AssignPlayerRole = {
   flag: boolean;
 }
 
-export type Message = PeersMessage | StateMessage | ChunkMessage | HeaderMessage | ResettingMediaSource | MediaSourceReady | EndOfStream | PlayerDuration | Seeked | ReadyToSeek | StreamMessage | PlayPauseStreamig | AssignPlayerRole;
+export type ThumbnailSpriteSheet = {
+  type: "thumbnailSpriteSheet";
+  data: Uint8Array;
+}
+
+export type Message = PeersMessage | StateMessage | ChunkMessage | HeaderMessage | ResettingMediaSource | MediaSourceReady | EndOfStream | PlayerDuration | Seeked | ReadyToSeek | StreamMessage | PlayPauseStreamig | AssignPlayerRole | ThumbnailSpriteSheet;

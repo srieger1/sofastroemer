@@ -3,12 +3,40 @@
 /**
  * mimeCodec: Genereller Codec für Sofastroemer Projekt(HTLM5 Video Element und MSE)
  * Upload Files müssen in webm sein NICHT MP4!!!
+ * VP8, VP9 brauchen in in hoher Auflösung einen größeren Buffer als 25 MB sonst gehts net
  */
 //export const mimeCodec = 'video/webm; codecs="av01.0.08M.08", opus'; // AV1 Codec opus(am besten)
 //export const mimeCodec = 'video/webm; codecs="vp8, vorbis"'; // VP8 Codec
-export const mimeCodec = 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"'; // H.264 Codec Software
-//export const mimeCodec = 'video/webm; codecs="vp9, opus"'; // VP9 Codec()
+//export const mimeCodec = 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"'; // H.264 Codec Software
+export const mimeCodec = 'video/webm; codecs="vp9, opus"'; // VP9 Codec() (klassisch Youtube)
 
+/**
+ * !!!!!!SEGMENT_DURATION_GOP_KEYFRAME!!!!!!!
+ * WICHTIG: muss unter Umständen für jedes Video angepasst werden.
+ * Typische Fehlermeldung im Frontend fals Falsch: "ffmpeg abourted Out of Memory"
+ * Abhängig von Codec, Auflösung, Filegröße, Bitrate.
+ * Basis Richtwerte für die Meisten Videos:
+ * AV1 1080p: 3 Sekunden, 4k: 3 Sekunden, bei längeren Videos(Zeit) eher 6 - 10 Sekunden
+ * VP9, VP8: 1080p,4k < 10min: 3 Sekunden, 1080p,4k > 10min: mindestens 10 Sekunden
+ * 
+ * Warum diese Anpassung?:
+ * Je nach stärke der Kompression und länge des Videos bekommt ffmpeg wasm
+ * mit der reinen Anzahl an benötigten/zu berechnenden VideoChunks Probleme.
+ * Diese Anpassung stellt dabei keine feste berechnung dar, sonderen mehr eine
+ * grobe Richtline, für ffmpeg wasm.
+ */
+export const SEGMENT_DURATION_GOP_KEYFRAME = 10;
+export const VIDEO_FPS = 24; // 24 FPS, nicht so super wichtig geht meistens auch wenn Falsch
+
+/**
+ * Gibt an wie viele Chunks für Thumbnails/SpriteSheets gleichzeitig generiert werden sollen
+ */
+export const MAX_CONCURRENT_TASKS = 10;
+export const backendThumbnailPort = 8082;
+export const thumbnailOutputDir = 'thumbnails';
+export const thumbnailSpriteSheetOutputDir = 'spriteSheets';
+export const thumbnailUploadDir = 'uploads';
+export const thumbnail = true;
 /**
  * mimeCodecMediaRecorder: Codec für MediaRecorder (entweder vp8 oder vp9)
  */
@@ -41,6 +69,7 @@ export const INITAL_PACKET_IGNORE_SIZE = 20; // Die ersten 20 Pakete ignorieren 
 
 //Weniger Rechenintensiv für LiveStreaming VBR zu CBR
 /*
+export const OBS_MODE = false; 
 export const FRAME_RATE_LIVE_STREAMING = 30; // 30 FPS
 export const CBR_BITRATE = '1000k'; // 1 Mbit/s
 export const CBR_BUFFER  = '2000k'; // 2 Mbit
@@ -50,6 +79,7 @@ export const VIDEOCODECPRESET = 'fast';
 
 /* //Mehr Rechenintensiv für LiveStreaming VBR zu CBR
 export const directCBRMode = false;
+export const OBS_MODE = false; 
 export const FRAME_RATE_LIVE_STREAMING = 60; // 60 FPS
 export const CBR_BITRATE = '5000k'; // 5 Mbit/s
 export const CBR_BUFFER = '2000k'; // 10 Mbit Buffer
@@ -59,18 +89,32 @@ export const VIDEOCRF = '0';       // Konstante Qualität
 export const FRAGMENT_DURATION = '1000'; */
 
 
+export const directCBRMode = true; // Direkter CBR Modus
+export const OBS_MODE = true;       // OBS Modus
+export const FRAME_RATE_LIVE_STREAMING = 60; // 60 FPS
+export const CBR_BITRATE = '2500k'; // 5 Mbit/s
+export const CBR_BUFFER = '5000k'; // 2 Mbit Buffer
+export const KEYFRAME_INTERVAL = (FRAME_RATE_LIVE_STREAMING); // Keyframe alle 0,5 Sekunden
+export const VIDEOCODECPRESET = 'slow'; // Maximale Qualität
+export const VIDEOCRF = '0';       // Konstante Qualität
+export const FRAGMENT_DURATION = '50000'; // 0.1 Sekunde
+
+
 /* //Direkte CBR Aufnahme im Backend
 export const directCBRMode = true; // Direkter CBR Modus
+export const OBS_MODE = false; 
 export const FRAME_RATE_LIVE_STREAMING = 60; // 60 FPS
 export const CBR_BITRATE = '5000k'; // 5 Mbit/s
 export const CBR_BUFFER = '2000k'; // 2 Mbit Buffer
 export const KEYFRAME_INTERVAL = (FRAME_RATE_LIVE_STREAMING / 2); // Keyframe alle 0,5 Sekunden
 export const VIDEOCODECPRESET = 'slow'; // Maximale Qualität
 export const VIDEOCRF = '0';       // Konstante Qualität
-export const FRAGMENT_DURATION = '1000'; // 0.1 Sekunde */
-
+export const FRAGMENT_DURATION = '1000'; // 0.1 Sekunde
+ */
+/*
 //Etwas weniger Rechenintensiv für LiveStreaming direkt CBR
 export const directCBRMode = true; // Direkter CBR Modus
+export const OBS_MODE = false; 
 export const FRAME_RATE_LIVE_STREAMING = 30; // 60 FPS
 export const CBR_BITRATE = '3500k'; // 5 Mbit/s
 export const CBR_BUFFER = '7000k'; // 2 Mbit Buffer
@@ -78,7 +122,7 @@ export const KEYFRAME_INTERVAL = (FRAME_RATE_LIVE_STREAMING); // Keyframe alle 0
 export const VIDEOCODECPRESET = 'slow'; // Maximale Qualität
 export const VIDEOCRF = '0';       // Konstante Qualität
 export const FRAGMENT_DURATION = '10000'; // 0.5 Sekunde
-
+*/
 /**
  * Gibt die Zeit eines Segmentes auf der Empfängerseite an(nur für Live Streaming) IN SEKUNDEN
  * Bei 10 sekündigen Segmenten wird bei Ende des zweiten Segmentes das erste Segment gelöscht
@@ -138,8 +182,5 @@ export const defaultVideoURL = "https://box.open-desk.net/Big Buck Bunny [YE7Vzl
 //export const defaultVideoURL = "https://ftp.nluug.nl/pub/graphics/blender/demo/movies/ToS/tearsofsteel_4k.mov";
 
 export const backendURL = 'ws://localhost:8081';
+export const OBS_RTMP_URL = 'rtmp://localhost/live/stream'; // RTMP URL
 export const backendPort = 8081;
-export const backendThumbnailPort = 8082;
-export const thumbnailOutputDir = 'thumbnails';
-export const thumbnailSpriteSheetOutputDir = 'spriteSheets';
-export const thumbnail = true;

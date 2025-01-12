@@ -1,11 +1,12 @@
 import { mimeCodec, MAX_NUMBER_OF_DELAYED_CHUNKS } from "../shared/globalConstants";
 import { waitForEventOrCondition, updateBufferSize, removeAllChunksFromSourceBuffer,
     decrementbufferedBytesSender, addSeekedStateAllPeers,
-    waitForConditionRxJS, addMetaEntryReceiver, shiftMetaEntryReceiver} from "./utils";
+    waitForConditionRxJS, addMetaEntryReceiver, shiftMetaEntryReceiver, addSpriteSheet} from "./utils";
 import { getMediaMetadata, setLokalIndexForChunksSender } from "./sender";
 import { broadcast_state, broadcastSeeked, broadcastReadyToSeek} from "./broadcastFunctions";
 import { getConnections } from "./peer";
-import { seekedStateAllPeers$, MetaEntryReceiver$, currentBufferSize$, playerRole$, player, liveStream$ } from "./stateVariables";
+import { seekedStateAllPeers$, MetaEntryReceiver$, currentBufferSize$, 
+  playerRole$, player, liveStream$} from "./stateVariables";
 import { setPlayerDurationDisplay } from "./style";
 import { ReadyToSeekAtTime } from "./types";
 
@@ -17,6 +18,7 @@ let expectedChunkNumber = 0; // Erwartete Nummer des nächsten Chunks
 let bufferQueueForLateChunks: Map<number, Uint8Array> = new Map(); // Warteschlange für späte Chunks
 let lastSeekedSender: number[] = []; //Um doppelte/n-fache Seeked Events zu verhindern
 let lastChunkReceivedTime:number = 0.0;
+let bufferSpriteSheet: Map<number, string> = new Map();
 
 export function initReceiver(){
     player.addEventListener("play", () => {
@@ -317,6 +319,20 @@ function removeChunkFromSourceBuffer() {
       }
     });
   }
+
+export function onThumbnailSpriteSheetReceived(spriteSheet: Uint8Array) {
+    const { number: uniqueSpriteIdentifier, chunk: originalSpriteSheet } = extract32BitNumberAndChunk(spriteSheet);
+    const spriteSheetURL = URL.createObjectURL(new Blob([originalSpriteSheet], { type: "image/jpg" }));
+    console.log(`SpriteSheet ${uniqueSpriteIdentifier} receivedm`, originalSpriteSheet.length, "bytes");
+    bufferSpriteSheet.set(uniqueSpriteIdentifier, spriteSheetURL);
+    if(bufferSpriteSheet.size >= (player.duration / 36) / 2){
+      const sortedSpriteSheets = new Map([...bufferSpriteSheet.entries()].sort((a, b) => a[0] - b[0]));
+      bufferSpriteSheet = sortedSpriteSheets;
+      for(let i = 0; i < bufferSpriteSheet.size; i++){
+        addSpriteSheet(bufferSpriteSheet.get(i)!);
+    }
+  }
+}
 
 
 export function getBufferQueue(): Uint8Array[] {

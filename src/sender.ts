@@ -8,14 +8,14 @@ import { defaultVideoURL, chunkSize, MAX_BUFFER_SIZE, LIVE_STREAMING_SPEED,
 import {MetaEntry, CurrentBufferSizes} from "./types"
 import { broadcastResettingMediaSource, broadcastPlayerDuration, broadcastHeader, 
   broadcastChunk, broadcastEndOfStream, broadcastStreaming, broadcastPlayPauseStreaming,
-  broadcastPlayerRoles
+  broadcastPlayerRoles, broadcastThumbnailSpriteSheet
   } from "./broadcastFunctions";
 import { getBufferQueue} from "./receiver";
 import { canAddToBuffer, removeBufferedBytesSender, addBufferedBytesSender,
   waitForConditionRxJS
  } from "./utils";
 import { getConnections } from "./peer";
-import { bufferedBytesSender$, currentBufferSize$, mediaSourceStateAllPeers$, liveStream$, player } from "./stateVariables";
+import { bufferedBytesSender$, currentBufferSize$, mediaSourceStateAllPeers$, liveStream$, thumbnailSpriteSheet$, player } from "./stateVariables";
 import { fetchFile } from "@ffmpeg/util";
 import { initThumbnailGeneration } from "./generateThumbnails";
 
@@ -45,7 +45,10 @@ export function initSender(){
         MediaMetadata = result.metaEntries;
         let uniqueIdentifier = result.uniqueIdentifier;
         let ffmpeg = result.ffmpeg;
-        if(thumbnail){initThumbnailGeneration(ffmpeg, totalNumberOfChunks,uniqueIdentifier, MediaMetadata);}
+        if(thumbnail){
+          initThumbnailGeneration(ffmpeg, totalNumberOfChunks,uniqueIdentifier, MediaMetadata);
+          startSendingThumbnails();
+        }
         broadcastResettingMediaSource(true);
         // Warte das alle Teilnehmer die Mediasource zurückgesetzt haben
         console.log("Waiting for all peers to reset MediaSource...");
@@ -239,6 +242,19 @@ async function startSendingChunks(data: Uint8Array) {
     buffer.set(chunk, 4);
 
     return buffer;
+}
+
+function startSendingThumbnails(){
+  thumbnailSpriteSheet$.subscribe(async (spriteSheet) => {
+    if (spriteSheet.length >= (MediaMetadata[(MediaMetadata.length-1)].end / 36) / 2) {
+      console.log("All thumbnails generated.");
+      for(let i = 0; i < thumbnailSpriteSheet$.value.length; i++){
+        const data = await fetchFile(thumbnailSpriteSheet$.value[i]);
+        const dataWithID = add32BitNumberToChunk(data, i);
+        broadcastThumbnailSpriteSheet(dataWithID);
+      }
+    }
+  });
 }
 
 export function getMediaMetadata(): MetaEntry[] {
