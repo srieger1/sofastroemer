@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sofaströmer</title>
+  </head>
+
+  <body>
+    <h1>🛋️ Sofaströmer</h1></br>
+
+    <a id="link">Share Link</a></br>
+
+    <form id="controls">
+      <input type="file" id="file" accept="video/webm" />
+      <button id="play">Play</button>
+      <button id="live">LiveStream</button>
+    </form>
+
+    <div id="video-container">
+      <video id="video"></video>
+      <div id="video-overlay">
+        <div id="progress-bar-container">
+          <img id="thumbnail-preview" style="display: none;"/>
+          <div id="progress-played"></div>
+          <div id="progress-buffered"></div>
+          <input id="progress-bar" type="range" min="0" max="100" step="0.1" value="0">
+        </div>
+        <div id="top-controls">
+          <div id="left-controls">
+            <button id="play-pause">
+              <img src="icons/play.svg" alt="Play" id="play-icon">
+              <img src="icons/pause.svg" alt="Pause" id="pause-icon" style="display: none;">
+            </button>
+            <div id ="volume-container">
+              <button id="mute-unmute">
+                <img src="icons/volume.svg" alt="Volume" id="volume-icon">
+                <img src="icons/mute.svg" alt="Mute" id="mute-icon" style="display: none;">
+              </button>
+              <div id="volume-slider-container">
+                <div id="volume-slider-container-vertical">
+                  <input id="volume-slider" orient="vertical" type="range" class="vertical" min="0" max="100" step="0.1" value="100">
+                </div>
+              </div>
+            </div>
+            <span id="time-display">0:00 / 0:00</span>
+            <span id="live-indicator" style="opacity: 0;">LIVE</span>
+          </div>
+          <div id="right-controls">
+            <button id="fullscreen">
+              <img src="icons/fullscreen.svg" alt="Fullscreen" id="fullscreen-icon" style="display: flex;">
+              <img src="icons/minimize.svg" alt="Minimize" id="minimize-icon" style="display: none;">
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    
+
+    <h3>Peers</h3>
+    <pre id="peers">
+    </pre>
+    <script src="dist/bundle.js"></script>
+  </body>
+</html>

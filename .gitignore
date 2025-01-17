@@ -1,5 +1,14 @@
 /.envrc
 /.direnv
-
+/dist
+/node_modules
+/dist-backend
+/favicon.png
+/FFmpeg.txt
+/package-lock.json
 /videos
-
+/zwsUML.txt
+/uploads
+/thumbnails
+/spriteSheets
+/sprite_sheet_list.txt
